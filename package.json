@@ -1,0 +1,30 @@
+{
+  "name": "deal-bot",
+  "version": "2.0.0",
+  "description": "Deal Bot - Automated deal aggregation and broadcasting system with Cuelinks affiliate link integration",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "fetch": "node src/fetchDeals.js",
+    "generate": "node src/contentGenerator.js",
+    "broadcast": "node src/broadcaster.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "deals",
+    "ecommerce",
+    "affiliate",
+    "cuelinks",
+    "automation"
+  ],
+  "author": "Azil135-sketch",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "cheerio": "^1.0.0-rc.12"
+  }
+}

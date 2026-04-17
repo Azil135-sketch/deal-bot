@@ -142,6 +142,55 @@ Logs are written to the console and can be configured via `LOG_LEVEL`:
 - `info`: General information, warnings, and errors (default)
 - `debug`: Detailed debugging information
 
+
+## Production Setup (Affiliate + Automation)
+
+### 1) Verify Cuelinks attribution (no "hole in pocket")
+- Every generated affiliate link now stores `{ dealId, sourceUrl, affiliateLink, subId, generatedAt }` in `./deals/affiliate-attribution-log.json`.
+- Run attribution audit against Cuelinks transactions:
+  ```bash
+  npm run audit:attribution
+  ```
+- This compares stored subIds with recent transactions to show matched vs unmatched attribution.
+
+### 2) Prevent repeated deals
+- The bot stores processed deal fingerprints in `./deals/processed-deals.json`.
+- Duplicate deals in a run and previously processed deals are automatically skipped.
+- Only successfully affiliated deals are marked as processed to avoid losing retries when Cuelinks fails.
+
+### 3) Upgrade deal quality with intelligence filters
+- `src/dealIntelligence.js` scores deals using weighted factors:
+  - discount percentage
+  - absolute savings
+  - rating and review depth
+  - optional trend score
+- Hard quality floors are configurable via:
+  - `MIN_DISCOUNT_PERCENT`
+  - `MIN_SAVINGS_AMOUNT`
+  - `MIN_RATING`
+  - `BLOCKED_KEYWORDS`
+  - `MAX_DEALS_PER_RUN`
+
+### 4) Feed real deals
+- Set `DEALS_FILE=./data/deals.json` and provide a JSON array of deals.
+- A sample schema is available at `data/deals.sample.json`.
+
+### 5) Automation
+- `RUN_INTERVAL_MINUTES` can run the bot continuously in one process (`0` = one-shot).
+- GitHub Actions workflow exists at `.github/workflows/deal-bot-cron.yml` (hourly + manual dispatch).
+- Add repository secrets for Cuelinks and Telegram before enabling production schedules.
+
+### 6) Distribution beyond Telegram
+- Telegram sends real messages through Bot API when credentials are set.
+- `DISTRIBUTION_WEBHOOKS` supports comma-separated webhook URLs (Zapier/Make/custom) for outsourced amplification pipelines.
+
+### 7) Better persuasion content
+- Content generation now uses decision psychology structure:
+  - value anchor
+  - social proof signal
+  - urgency framing
+  - low-friction decision cue
+
 ## License
 
 MIT

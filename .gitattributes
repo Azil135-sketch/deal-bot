@@ -1,0 +1,10 @@
+# Reduce recurring merge conflicts on frequently edited docs/config.
+README.md merge=union
+.env.example merge=union
+
+# Runtime/sample data files often receive additive updates in parallel branches.
+data/deals.json merge=union
+data/deals.sample.json merge=union
+
+# Preserve line endings consistently.
+* text=auto

@@ -42,12 +42,18 @@ class ContentGenerator {
   generateTelegramContent(deal) {
     const discount = deal.discount || 0;
     const savings = deal.originalPrice - deal.discountedPrice;
+    const triggerLine = this.getPsychologyTrigger(discount, savings, deal.qualityScore || 0);
+    const bullets = this.getDecisionBullets(deal);
+    const urgency = this.getUrgencyLine(discount, deal.reviews || 0);
 
-    let content = `🔥 *${deal.title}*\n\n`;
-    content += `💰 *Price:* ₹${deal.discountedPrice} (was ₹${deal.originalPrice})\n`;
-    content += `📉 *Discount:* ${discount}% OFF (Save ₹${savings})\n\n`;
-    content += `📝 ${deal.description}\n\n`;
-    content += `🛍️ [Shop Now](${deal.affiliateLink || deal.productUrl})\n`;
+    let content = `🔥 *${deal.title}*\n`;
+    content += `_${triggerLine}_\n\n`;
+    content += `💰 *Now:* ₹${deal.discountedPrice}   |   *MRP:* ₹${deal.originalPrice}\n`;
+    content += `📉 *${discount}% OFF*  (You save ₹${savings})\n`;
+    content += `⭐ *Rating:* ${deal.rating || 'N/A'}  |  🧾 *Reviews:* ${deal.reviews || 'N/A'}\n\n`;
+    content += `🧠 *Why this is smart:*\n${bullets}\n\n`;
+    content += `⏳ ${urgency}\n\n`;
+    content += `🛍️ *Buy Here:* ${deal.affiliateLink || deal.productUrl}\n`;
     content += `\n_Source: ${deal.source}_`;
 
     return content;
@@ -59,15 +65,17 @@ class ContentGenerator {
    */
   generateTwitterContent(deal) {
     const discount = deal.discount || 0;
+    const savings = deal.originalPrice - deal.discountedPrice;
+    const triggerLine = this.getPsychologyTrigger(discount, savings, deal.qualityScore || 0);
 
-    let content = `🔥 ${deal.title}\n\n`;
-    content += `💰 ₹${deal.discountedPrice} (was ₹${deal.originalPrice})\n`;
-    content += `📉 ${discount}% OFF\n\n`;
+    let content = `🔥 ${deal.title}\n`;
+    content += `${discount}% OFF | Save ₹${savings}\n`;
+    content += `${triggerLine}\n`;
+    content += `${this.getUrgencyLine(discount, deal.reviews || 0)}\n`;
     content += `${deal.affiliateLink || deal.productUrl}`;
 
-    // Twitter has character limits, truncate if needed
     if (content.length > 280) {
-      content = content.substring(0, 270) + '...';
+      content = `${deal.title} | ${discount}% OFF | ₹${deal.discountedPrice}\n${deal.affiliateLink || deal.productUrl}`;
     }
 
     return content;
@@ -80,15 +88,75 @@ class ContentGenerator {
   generateEmailContent(deal) {
     const discount = deal.discount || 0;
     const savings = deal.originalPrice - deal.discountedPrice;
+    const triggerLine = this.getPsychologyTrigger(discount, savings, deal.qualityScore || 0);
+    const bullets = this.getDecisionBullets(deal).replace(/\n/g, '<br>');
 
     let content = `<h2>${deal.title}</h2>\n`;
-    content += `<p>${deal.description}</p>\n`;
-    content += `<p><strong>Price:</strong> ₹${deal.discountedPrice} (was ₹${deal.originalPrice})</p>\n`;
+    content += `<p><em>${triggerLine}</em></p>\n`;
+    content += `<p><strong>Now:</strong> ₹${deal.discountedPrice} &nbsp; <strong>MRP:</strong> ₹${deal.originalPrice}</p>\n`;
     content += `<p><strong>Discount:</strong> ${discount}% OFF (Save ₹${savings})</p>\n`;
-    content += `<p><a href="${deal.affiliateLink || deal.productUrl}">Shop Now</a></p>\n`;
+    content += `<p><strong>Rating:</strong> ${deal.rating || 'N/A'} (${deal.reviews || 'N/A'} reviews)</p>\n`;
+    content += `<p><strong>Why this is a high-conviction buy:</strong><br>${bullets}</p>\n`;
+    content += `<p>${this.getUrgencyLine(discount, deal.reviews || 0)}</p>\n`;
+    content += `<p><a href="${deal.affiliateLink || deal.productUrl}">Buy with affiliate link</a></p>\n`;
     content += `<p><small>Source: ${deal.source}</small></p>`;
 
     return content;
+  }
+
+  /**
+   * Build psychologically-informed marketing hooks
+   * @param {number} discount
+   * @param {number} savings
+   * @returns {string}
+   */
+  getPsychologyTrigger(discount, savings, qualityScore) {
+    if (discount >= 60 && qualityScore >= 45) {
+      return '⚡ High-velocity offer: deep discount + strong value signals. Typical sell-outs are fast.';
+    }
+
+    if (discount >= 45) {
+      return `✅ Asymmetric upside: save ₹${savings} while retaining premium-tier value.`;
+    }
+
+    if (discount >= 30) {
+      return '📈 Rational buy zone: meaningful savings with lower regret risk.';
+    }
+
+    return '🧠 Opportunity pick: not extreme discount, but strong utility-per-rupee.';
+  }
+
+  /**
+   * Build concise buying bullets based on conversion psychology
+   * @param {Object} deal
+   * @returns {string}
+   */
+  getDecisionBullets(deal) {
+    const bullets = [
+      `• *Value Anchor:* You keep ₹${deal.savings || (deal.originalPrice - deal.discountedPrice)} vs MRP.`,
+      `• *Risk Signal:* Rating ${deal.rating || 'N/A'} from ${deal.reviews || 'N/A'} reviews.`,
+      `• *Decision Ease:* Clear price drop now; no coupon puzzle required.`
+    ];
+
+    return bullets.join('\n');
+  }
+
+  /**
+   * Generate urgency line from discount and social-proof depth
+   * @param {number} discount
+   * @param {number} reviews
+   * @returns {string}
+   */
+  getUrgencyLine(discount, reviews) {
+    if (discount >= 55) {
+      return 'Heavy-discount items usually reprice quickly — waiting can erase the edge.';
+    }
+
+    if (reviews >= 5000) {
+      return 'High-demand SKU with strong social proof. Good deals here do not stay quiet for long.';
+    }
+
+    return 'If this matches your need today, locking the current price is typically the better EV move.';
   }
 
   /**

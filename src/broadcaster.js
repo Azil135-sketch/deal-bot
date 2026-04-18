@@ -3,6 +3,7 @@
  * Handles broadcasting deals to various channels
  */
 
+const axios = require('axios');
 const logger = require('./logger');
 const ContentGenerator = require('./contentGenerator');
 
@@ -27,7 +28,8 @@ class Broadcaster {
     const results = {
       telegram: await this.broadcastToTelegram(deals),
       twitter: await this.broadcastToTwitter(deals),
-      email: await this.broadcastToEmail(deals)
+      email: await this.broadcastToEmail(deals),
+      webhooks: await this.broadcastToWebhooks(deals)
     };
 
     logger.info('Broadcasting completed', results);
@@ -60,8 +62,7 @@ class Broadcaster {
         try {
           const content = this.contentGenerator.generateContent(deal, 'telegram');
           if (content) {
-            // TODO: Send to Telegram
-            // await telegramBot.sendMessage(chatId, content, { parse_mode: 'Markdown' });
+            await this.sendTelegramMessage(botToken, chatId, content);
             broadcastCount++;
             logger.debug(`Sent deal to Telegram: ${deal.id}`);
           }
@@ -78,6 +79,63 @@ class Broadcaster {
       logger.error('Error broadcasting to Telegram', { error: error.message });
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Send one message to Telegram Bot API
+   * @private
+   */
+  async sendTelegramMessage(botToken, chatId, content) {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+    await axios.post(url, {
+      chat_id: chatId,
+      text: content,
+      parse_mode: 'Markdown',
+      disable_web_page_preview: false
+    }, {
+      timeout: 10000
+    });
+  }
+
+  /**
+   * Broadcast to configured webhook endpoints (Zapier/Make/custom)
+   * @private
+   */
+  async broadcastToWebhooks(deals) {
+    const rawWebhooks = process.env.DISTRIBUTION_WEBHOOKS || '';
+    const webhooks = rawWebhooks.split(',').map(value => value.trim()).filter(Boolean);
+
+    if (webhooks.length === 0) {
+      logger.warn('No distribution webhooks configured, skipping external distribution');
+      return { success: false, message: 'No webhooks configured' };
+    }
+
+    let successCount = 0;
+
+    for (const webhook of webhooks) {
+      try {
+        await axios.post(webhook, {
+          deals,
+          sentAt: new Date().toISOString(),
+          source: 'deal-bot'
+        }, {
+          timeout: 10000
+        });
+        successCount++;
+      } catch (error) {
+        logger.warn('Failed posting to distribution webhook', {
+          webhook,
+          error: error.message
+        });
+      }
+    }
+
+    return {
+      success: successCount > 0,
+      delivered: successCount,
+      total: webhooks.length
+    };
   }
 
   /**

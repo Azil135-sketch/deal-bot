@@ -8,7 +8,8 @@
     "fetch": "node src/fetchDeals.js",
     "generate": "node src/contentGenerator.js",
     "broadcast": "node src/broadcaster.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "audit:attribution": "node src/auditAttribution.js"
   },
   "keywords": [
     "deals",

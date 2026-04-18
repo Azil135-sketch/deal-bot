@@ -1,0 +1,33 @@
+name: Deal Bot Automation
+
+on:
+  schedule:
+    - cron: '0 * * * *' # hourly UTC
+  workflow_dispatch:
+
+jobs:
+  run-deal-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run deal bot
+        env:
+          CUELINKS_API_KEY: ${{ secrets.CUELINKS_API_KEY }}
+          CUELINKS_PUBLISHER_ID: ${{ secrets.CUELINKS_PUBLISHER_ID }}
+          CUELINKS_CHANNEL_ID: ${{ secrets.CUELINKS_CHANNEL_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DEALS_FILE: ./data/deals.json
+          LOG_LEVEL: info
+        run: npm start

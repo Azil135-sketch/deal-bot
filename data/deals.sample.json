@@ -1,0 +1,17 @@
+[
+  {
+    "id": "sample-001",
+    "source": "amazon",
+    "title": "Noise-Cancelling Headphones Pro",
+    "originalPrice": 12999,
+    "discountedPrice": 6499,
+    "discount": 50,
+    "rating": 4.4,
+    "reviews": 8421,
+    "trendScore": 8,
+    "productUrl": "https://www.amazon.in/dp/B0EXAMPLE01",
+    "imageUrl": null,
+    "description": "40-hour battery, hybrid ANC, premium codec support.",
+    "timestamp": "2026-04-17T00:00:00.000Z"
+  }
+]

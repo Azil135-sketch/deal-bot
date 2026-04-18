@@ -30,7 +30,12 @@ class DealBotOrchestrator {
 
       if (deals.length === 0) {
         logger.warn('No deals found, exiting');
-        return;
+        return {
+          success: true,
+          dealsProcessed: 0,
+          broadcast: null,
+          message: 'No deals found'
+        };
       }
 
       logger.info(`Found ${deals.length} deals`);
@@ -40,6 +45,16 @@ class DealBotOrchestrator {
       const processedDeals = await this.fetcher.processDealsWithAffiliateLinks();
 
       logger.info(`Processed ${processedDeals.length} deals`);
+
+      if (processedDeals.length === 0) {
+        logger.warn('No affiliated deals available after processing, skipping content generation and broadcast');
+        return {
+          success: true,
+          dealsProcessed: 0,
+          broadcast: null,
+          message: 'No affiliated deals available'
+        };
+      }
 
       // Step 3: Generate content
       logger.info('Step 3: Generating content for deals');
@@ -71,7 +86,7 @@ class DealBotOrchestrator {
 }
 
 // Main execution
-async function main() {
+async function main(exitWhenDone = true) {
   try {
     // Validate required environment variables
     const requiredEnvVars = ['CUELINKS_API_KEY'];
@@ -82,22 +97,51 @@ async function main() {
         missing: missingEnvVars,
         hint: 'Please copy .env.example to .env and fill in the required values'
       });
-      process.exit(1);
+      if (exitWhenDone) process.exit(1);
+      return null;
     }
 
     const orchestrator = new DealBotOrchestrator();
     const result = await orchestrator.run();
 
     console.log('\n=== FINAL RESULTS ===\n', JSON.stringify(result, null, 2));
-    process.exit(0);
+    if (exitWhenDone) process.exit(0);
+    return result;
   } catch (error) {
     logger.error('Fatal error in main', { error: error.message });
-    process.exit(1);
+    if (exitWhenDone) process.exit(1);
+    throw error;
   }
 }
 
 if (require.main === module) {
-  main();
+  const intervalMinutes = Number(process.env.RUN_INTERVAL_MINUTES || 0);
+
+  if (intervalMinutes > 0) {
+    logger.info(`Scheduler mode enabled. Running every ${intervalMinutes} minute(s).`);
+    let isRunInProgress = false;
+
+    const executeScheduledRun = async () => {
+      if (isRunInProgress) {
+        logger.warn('Skipping scheduled run because a previous run is still in progress');
+        return;
+      }
+
+      isRunInProgress = true;
+      try {
+        await main(false);
+      } catch (error) {
+        logger.error('Scheduled run failed', { error: error.message });
+      } finally {
+        isRunInProgress = false;
+      }
+    };
+
+    executeScheduledRun();
+    setInterval(executeScheduledRun, intervalMinutes * 60 * 1000);
+  } else {
+    main();
+  }
 }
 
 module.exports = DealBotOrchestrator;

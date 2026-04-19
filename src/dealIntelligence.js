@@ -8,14 +8,14 @@ const logger = require('./logger');
 class DealIntelligence {
   constructor() {
     this.minDiscount = Number(process.env.MIN_DISCOUNT_PERCENT || 20);
-    this.minSavings = Number(process.env.MIN_SAVINGS_AMOUNT || 300);
-    this.minRating = Number(process.env.MIN_RATING || 3.8);
+    this.minSavings = Number(process.env.MIN_SAVINGS_AMOUNT || 200);
+    this.minRating = Number(process.env.MIN_RATING || 3.5);
     this.maxDealsPerRun = Number(process.env.MAX_DEALS_PER_RUN || 20);
     this.blockedKeywords = (process.env.BLOCKED_KEYWORDS || 'refurbished,renewed,used')
       .split(',')
       .map(keyword => keyword.trim().toLowerCase())
       .filter(Boolean);
-    this.allowedDealDomains = (process.env.ALLOWED_DEAL_DOMAINS || 'amazon.,flipkart.,myntra.,ajio.,nykaa.,tatacliq.,croma.,reliancedigital.,meesho.,snapdeal.')
+    this.allowedDealDomains = (process.env.ALLOWED_DEAL_DOMAINS || 'amazon.,flipkart.,myntra.,ajio.,nykaa.,tatacliq.,croma.,reliancedigital.,meesho.,snapdeal.,desidime.com,grabon.in,coupondunia.in')
       .split(',')
       .map(domain => domain.trim().toLowerCase())
       .filter(Boolean);

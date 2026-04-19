@@ -1,6 +1,7 @@
 /**
- * Deal Bot v2.0 - Main Entry Point
- * Orchestrates the deal fetching, content generation, and broadcasting pipeline
+ * Deal Bot v3.0 - Main Entry Point
+ * Full pipeline: scrape → affiliate links → content → broadcast
+ * Runs as one-shot (GitHub Actions) or as a server with webhook (Replit/VPS).
  */
 
 require('dotenv').config();
@@ -9,75 +10,51 @@ const logger = require('./logger');
 const DealFetcher = require('./fetchDeals');
 const ContentGenerator = require('./contentGenerator');
 const Broadcaster = require('./broadcaster');
+const GrowthEngine = require('./growthEngine');
 
 class DealBotOrchestrator {
   constructor() {
     this.fetcher = new DealFetcher();
     this.generator = new ContentGenerator();
     this.broadcaster = new Broadcaster();
+    this.growthEngine = new GrowthEngine();
   }
 
-  /**
-   * Run the complete deal bot pipeline
-   */
   async run() {
     try {
-      logger.info('=== Deal Bot v2.0 Starting ===');
+      logger.info('=== Deal Bot v3.0 Starting ===');
 
-      // Step 1: Fetch deals
+      // Step 1: Fetch deals (file + scrapers)
       logger.info('Step 1: Fetching deals from all sources');
       const deals = await this.fetcher.fetchAllDeals();
 
       if (deals.length === 0) {
-        logger.warn('No deals found, exiting');
-        return {
-          success: true,
-          dealsProcessed: 0,
-          broadcast: null,
-          message: 'No deals found'
-        };
+        logger.warn('No deals found after all sources and filters');
+        return { success: true, dealsProcessed: 0, broadcast: null, message: 'No deals found' };
       }
 
-      logger.info(`Found ${deals.length} deals`);
+      logger.info(`Found ${deals.length} quality deals`);
 
-      // Step 2: Process deals with affiliate links and images
-      logger.info('Step 2: Processing deals with Cuelinks affiliate links');
+      // Step 2: Attach affiliate links
+      logger.info('Step 2: Attaching affiliate links');
       const processedDeals = await this.fetcher.processDealsWithAffiliateLinks();
 
-      logger.info(`Processed ${processedDeals.length} deals`);
-
       if (processedDeals.length === 0) {
-        logger.warn('No affiliated deals available after processing, skipping content generation and broadcast');
-        return {
-          success: true,
-          dealsProcessed: 0,
-          broadcast: null,
-          message: 'No affiliated deals available'
-        };
+        logger.warn('No deals available after affiliate processing');
+        return { success: true, dealsProcessed: 0, broadcast: null, message: 'No deals after affiliate processing' };
       }
 
-      // Step 3: Generate content
-      logger.info('Step 3: Generating content for deals');
-      const contentByPlatform = {
-        telegram: this.generator.generateMultipleContent(processedDeals, 'telegram'),
-        twitter: this.generator.generateMultipleContent(processedDeals, 'twitter'),
-        email: this.generator.generateMultipleContent(processedDeals, 'email')
-      };
+      logger.info(`${processedDeals.length} deals ready to broadcast`);
 
-      logger.info('Content generated for all platforms');
+      // Step 3: Set up bot commands (idempotent — safe to call every run)
+      await this.growthEngine.setupBotCommands();
 
-      // Step 4: Broadcast deals
-      logger.info('Step 4: Broadcasting deals to all channels');
+      // Step 4: Broadcast
+      logger.info('Step 3: Broadcasting deals');
       const broadcastResults = await this.broadcaster.broadcastAll(processedDeals);
 
-      logger.info('=== Deal Bot Pipeline Completed Successfully ===');
-      logger.info('Results:', broadcastResults);
-
-      return {
-        success: true,
-        dealsProcessed: processedDeals.length,
-        broadcast: broadcastResults
-      };
+      logger.info('=== Deal Bot Pipeline Completed ===');
+      return { success: true, dealsProcessed: processedDeals.length, broadcast: broadcastResults };
     } catch (error) {
       logger.error('Fatal error in deal bot pipeline', { error: error.message });
       throw error;
@@ -85,20 +62,11 @@ class DealBotOrchestrator {
   }
 }
 
-// Main execution
 async function main(exitWhenDone = true) {
   try {
-    // Validate required environment variables
-    const requiredEnvVars = ['CUELINKS_API_KEY'];
-    const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-
-    if (missingEnvVars.length > 0) {
-      logger.error('Missing required environment variables', {
-        missing: missingEnvVars,
-        hint: 'Please copy .env.example to .env and fill in the required values'
-      });
-      if (exitWhenDone) process.exit(1);
-      return null;
+    // CUELINKS_API_KEY is recommended but not required (bot still works with direct links)
+    if (!process.env.CUELINKS_API_KEY) {
+      logger.warn('CUELINKS_API_KEY not set — affiliate links will use direct tracking params only');
     }
 
     const orchestrator = new DealBotOrchestrator();
@@ -115,31 +83,35 @@ async function main(exitWhenDone = true) {
 }
 
 if (require.main === module) {
-  const intervalMinutes = Number(process.env.RUN_INTERVAL_MINUTES || 0);
+  const mode = process.env.BOT_MODE || 'oneshot';
 
-  if (intervalMinutes > 0) {
-    logger.info(`Scheduler mode enabled. Running every ${intervalMinutes} minute(s).`);
+  if (mode === 'server') {
+    // Server mode: run pipeline + start webhook server for bot commands
+    const WebhookServer = require('./webhookServer');
+    const server = new WebhookServer();
+    server.start();
+
+    // Run pipeline immediately, then on interval if configured
+    const intervalMinutes = Number(process.env.RUN_INTERVAL_MINUTES || 60);
     let isRunInProgress = false;
 
-    const executeScheduledRun = async () => {
+    const executeRun = async () => {
       if (isRunInProgress) {
-        logger.warn('Skipping scheduled run because a previous run is still in progress');
+        logger.warn('Skipping run — previous run still in progress');
         return;
       }
-
       isRunInProgress = true;
       try {
         await main(false);
-      } catch (error) {
-        logger.error('Scheduled run failed', { error: error.message });
       } finally {
         isRunInProgress = false;
       }
     };
 
-    executeScheduledRun();
-    setInterval(executeScheduledRun, intervalMinutes * 60 * 1000);
+    executeRun();
+    setInterval(executeRun, intervalMinutes * 60 * 1000);
   } else {
+    // One-shot mode (default — GitHub Actions)
     main();
   }
 }

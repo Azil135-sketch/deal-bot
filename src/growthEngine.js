@@ -32,7 +32,7 @@ class GrowthEngine {
     const lines = [
       '',
       '━━━━━━━━━━━━━━━━━━━━━',
-      `💡 *Know someone who loves deals?*`,
+      `💡 <b>Know someone who loves deals?</b>`,
       `👉 Share this post or forward them to ${channelRef}`,
       `🔔 Turn on notifications so you never miss a deal`,
       '━━━━━━━━━━━━━━━━━━━━━'

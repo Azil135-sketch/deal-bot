@@ -1,9 +1,17 @@
 /**
  * Content Generator Module
  * Generates marketing content for deals
+ * Uses HTML parse mode for Telegram (more robust than Markdown)
  */
 
 const logger = require('./logger');
+
+function htmlEscape(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 
 class ContentGenerator {
   constructor() {
@@ -14,12 +22,6 @@ class ContentGenerator {
     };
   }
 
-  /**
-   * Generate content for a deal
-   * @param {Object} deal - Deal object
-   * @param {string} platform - Target platform (telegram, twitter, email)
-   * @returns {string} - Generated content
-   */
   generateContent(deal, platform = 'telegram') {
     try {
       const generator = this.templates[platform];
@@ -27,7 +29,6 @@ class ContentGenerator {
         logger.warn(`Unknown platform: ${platform}`);
         return null;
       }
-
       return generator.call(this, deal);
     } catch (error) {
       logger.error(`Error generating content for ${platform}`, { error: error.message });
@@ -35,37 +36,33 @@ class ContentGenerator {
     }
   }
 
-  /**
-   * Generate Telegram content
-   * @private
-   */
   generateTelegramContent(deal) {
     const discount = deal.discount || 0;
-    const savings = deal.originalPrice - deal.discountedPrice;
+    const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
     const triggerLine = this.getPsychologyTrigger(discount, savings, deal.qualityScore || 0);
     const bullets = this.getDecisionBullets(deal);
     const urgency = this.getUrgencyLine(discount, deal.reviews || 0);
 
-    let content = `🔥 *${deal.title}*\n`;
-    content += `_${triggerLine}_\n\n`;
-    content += `💰 *Now:* ₹${deal.discountedPrice}   |   *MRP:* ₹${deal.originalPrice}\n`;
-    content += `📉 *${discount}% OFF*  (You save ₹${savings})\n`;
-    content += `⭐ *Rating:* ${deal.rating || 'N/A'}  |  🧾 *Reviews:* ${deal.reviews || 'N/A'}\n\n`;
-    content += `🧠 *Why this is smart:*\n${bullets}\n\n`;
-    content += `⏳ ${urgency}\n\n`;
-    content += `🛍️ *Buy Here:* ${deal.affiliateLink || deal.productUrl}\n`;
-    content += `\n_Source: ${deal.source}_`;
+    const title = htmlEscape(deal.title);
+    const source = htmlEscape(deal.source || 'unknown');
+    const link = deal.affiliateLink || deal.productUrl || '';
+
+    let content = `🔥 <b>${title}</b>\n`;
+    content += `<i>${htmlEscape(triggerLine)}</i>\n\n`;
+    content += `💰 <b>Now:</b> ₹${deal.discountedPrice}   |   <b>MRP:</b> ₹${deal.originalPrice}\n`;
+    content += `📉 <b>${discount}% OFF</b>  (You save ₹${savings})\n`;
+    content += `⭐ <b>Rating:</b> ${deal.rating || 'N/A'}  |  🧾 <b>Reviews:</b> ${deal.reviews || 'N/A'}\n\n`;
+    content += `🧠 <b>Why this is smart:</b>\n${bullets}\n\n`;
+    content += `⏳ ${htmlEscape(urgency)}\n\n`;
+    content += `🛍️ <b>Buy Here:</b> ${link}\n`;
+    content += `\n<i>Source: ${source}</i>`;
 
     return content;
   }
 
-  /**
-   * Generate Twitter content
-   * @private
-   */
   generateTwitterContent(deal) {
     const discount = deal.discount || 0;
-    const savings = deal.originalPrice - deal.discountedPrice;
+    const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
     const triggerLine = this.getPsychologyTrigger(discount, savings, deal.qualityScore || 0);
 
     let content = `🔥 ${deal.title}\n`;
@@ -81,13 +78,9 @@ class ContentGenerator {
     return content;
   }
 
-  /**
-   * Generate Email content
-   * @private
-   */
   generateEmailContent(deal) {
     const discount = deal.discount || 0;
-    const savings = deal.originalPrice - deal.discountedPrice;
+    const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
     const triggerLine = this.getPsychologyTrigger(discount, savings, deal.qualityScore || 0);
     const bullets = this.getDecisionBullets(deal).replace(/\n/g, '<br>');
 
@@ -104,118 +97,45 @@ class ContentGenerator {
     return content;
   }
 
-  /**
-   * Build psychologically-informed marketing hooks
-   * @param {number} discount
-   * @param {number} savings
-   * @param {number} qualityScore
-   * @returns {string}
-   */
   getPsychologyTrigger(discount, savings, qualityScore) {
     if (discount >= 60 && qualityScore >= 45) {
       return '⚡ High-velocity offer: deep discount + strong value signals. Typical sell-outs are fast.';
     }
-
     if (discount >= 45) {
       return `✅ Asymmetric upside: save ₹${savings} while retaining premium-tier value.`;
     }
-
     if (discount >= 30) {
       return '📈 Rational buy zone: meaningful savings with lower regret risk.';
     }
-
     return '🧠 Opportunity pick: not extreme discount, but strong utility-per-rupee.';
   }
 
-  /**
-   * Build concise buying bullets based on conversion psychology
-   * @param {Object} deal
-   * @returns {string}
-   */
   getDecisionBullets(deal) {
+    const savings = deal.savings || ((deal.originalPrice || 0) - (deal.discountedPrice || 0));
     const bullets = [
-      `• *Value Anchor:* You keep ₹${deal.savings || (deal.originalPrice - deal.discountedPrice)} vs MRP.`,
-      `• *Risk Signal:* Rating ${deal.rating || 'N/A'} from ${deal.reviews || 'N/A'} reviews.`,
-      `• *Decision Ease:* Clear price drop now; no coupon puzzle required.`
+      `• <b>Value Anchor:</b> You keep ₹${savings} vs MRP.`,
+      `• <b>Risk Signal:</b> Rating ${deal.rating || 'N/A'} from ${deal.reviews || 'N/A'} reviews.`,
+      `• <b>Decision Ease:</b> Clear price drop now; no coupon puzzle required.`
     ];
-
     return bullets.join('\n');
   }
 
-  /**
-   * Generate urgency line from discount and social-proof depth
-   * @param {number} discount
-   * @param {number} reviews
-   * @returns {string}
-   */
   getUrgencyLine(discount, reviews) {
     if (discount >= 55) {
       return 'Heavy-discount items usually reprice quickly — waiting can erase the edge.';
     }
-
     if (reviews >= 5000) {
       return 'High-demand SKU with strong social proof. Good deals here do not stay quiet for long.';
     }
-
     return 'If this matches your need today, locking the current price is typically the better EV move.';
   }
 
-  /**
-   * Generate content for multiple deals
-   * @param {Array} deals - Array of deal objects
-   * @param {string} platform - Target platform
-   * @returns {Array} - Array of generated content
-   */
   generateMultipleContent(deals, platform = 'telegram') {
     logger.info(`Generating ${platform} content for ${deals.length} deals`);
-
     return deals
       .map(deal => this.generateContent(deal, platform))
       .filter(content => content !== null);
   }
-}
-
-// Main execution
-async function main() {
-  try {
-    require('dotenv').config();
-
-    const generator = new ContentGenerator();
-
-    // Example deal for testing
-    const exampleDeal = {
-      id: 'test-deal-001',
-      title: 'Premium Wireless Headphones',
-      originalPrice: 5999,
-      discountedPrice: 2999,
-      discount: 50,
-      description: 'High-quality sound with noise cancellation',
-      source: 'amazon',
-      productUrl: 'https://amazon.in/dp/ASIN',
-      affiliateLink: 'https://cuelinks.com/l/xxxxx'
-    };
-
-    logger.info('Generating sample content');
-
-    const telegramContent = generator.generateContent(exampleDeal, 'telegram');
-    logger.info('Telegram content generated');
-    console.log('\n--- TELEGRAM CONTENT ---\n', telegramContent);
-
-    const twitterContent = generator.generateContent(exampleDeal, 'twitter');
-    logger.info('Twitter content generated');
-    console.log('\n--- TWITTER CONTENT ---\n', twitterContent);
-
-    const emailContent = generator.generateContent(exampleDeal, 'email');
-    logger.info('Email content generated');
-    console.log('\n--- EMAIL CONTENT ---\n', emailContent);
-  } catch (error) {
-    logger.error('Fatal error in content generation', { error: error.message });
-    process.exit(1);
-  }
-}
-
-if (require.main === module) {
-  main();
 }
 
 module.exports = ContentGenerator;

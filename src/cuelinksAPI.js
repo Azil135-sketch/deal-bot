@@ -3,13 +3,17 @@
  * Handles all communication with the Cuelinks v2 API.
  * Note: Constructor no longer throws if API key is missing — it just disables API calls.
  * Use AffiliateRouter which wraps this with fallback logic.
+ *
+ * Correct API base: https://www.cuelinks.com/api/v2
+ * Auth header: Authorization: Token {api_key}
+ * Link generation: GET /links.json?url={product_url}&channel_id={channel_id}
  */
 
 const axios = require('axios');
 const logger = require('./logger');
 
-const CUELINKS_API_BASE = 'https://api.cuelinks.com/v2';
-const MAX_RETRIES = 3;
+const CUELINKS_API_BASE = 'https://www.cuelinks.com/api/v2';
+const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;
 
 class CuelinksAPI {
@@ -27,24 +31,36 @@ class CuelinksAPI {
     this.client = axios.create({
       baseURL: CUELINKS_API_BASE,
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Token ${this.apiKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       timeout: 10000
     });
   }
 
   /**
-   * Generate an affiliate link using the Cuelinks API
+   * Generate an affiliate link using the Cuelinks API.
+   * GET /links.json?url={product_url}&channel_id={channel_id}
    */
   async generateLink(sourceUrl, subId = 'deal-bot-v2') {
     if (!this.client) throw new Error('Cuelinks API key not configured');
     if (!sourceUrl) throw new Error('sourceUrl is required');
 
-    const payload = { source_url: sourceUrl, subid: subId };
-    if (this.channelId) payload.channel_id = this.channelId;
+    const params = { url: sourceUrl };
+    if (this.channelId) params.channel_id = this.channelId;
+    if (subId) params.subid = subId;
 
-    return this._makeRequest('POST', '/links.json', payload);
+    const result = await this._makeRequest('GET', '/links.json', null, params);
+
+    // Extract the affiliate link from the response
+    if (result && result.affiliate_url) return result.affiliate_url;
+    if (result && result.short_url) return result.short_url;
+    if (result && result.link) return result.link;
+    if (result && result.url) return result.url;
+    if (typeof result === 'string') return result;
+
+    throw new Error('No affiliate link in response');
   }
 
   /**
@@ -70,27 +86,33 @@ class CuelinksAPI {
     try {
       logger.debug(`Cuelinks ${method} ${endpoint}`, { attempt });
 
-      const config = params ? { params } : {};
+      const config = {};
+      if (params) config.params = params;
+
       const response = method === 'GET'
         ? await this.client.get(endpoint, config)
         : await this.client.post(endpoint, data, config);
 
-      if (response.data.success === false) {
-        throw new Error(`API Error: ${response.data.message || 'Unknown error'}`);
+      const d = response.data;
+
+      // Cuelinks returns error fields as `error` or `errors`
+      if (d && (d.error || d.errors)) {
+        throw new Error(d.error || (Array.isArray(d.errors) ? d.errors.join(', ') : d.errors));
       }
 
-      return response.data.data || response.data;
+      return d.data || d;
     } catch (error) {
+      const msg = error.response?.data?.error || error.response?.data?.errors || error.message;
       logger.warn(`Cuelinks request failed (attempt ${attempt}/${MAX_RETRIES})`, {
-        endpoint, error: error.message
+        endpoint, error: msg
       });
 
-      if (attempt < MAX_RETRIES) {
+      if (attempt < MAX_RETRIES && !msg?.includes('approval')) {
         await this._delay(RETRY_DELAY * attempt);
         return this._makeRequest(method, endpoint, data, params, attempt + 1);
       }
 
-      throw error;
+      throw new Error(String(msg));
     }
   }
 

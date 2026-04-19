@@ -1,22 +1,21 @@
 {
   "name": "deal-bot",
-  "version": "2.0.0",
-  "description": "Deal Bot - Automated deal aggregation and broadcasting system with Cuelinks affiliate link integration",
+  "version": "3.0.0",
+  "description": "Deal Bot - Automated deal aggregation, affiliate links, and Telegram broadcasting",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "fetch": "node src/fetchDeals.js",
     "generate": "node src/contentGenerator.js",
     "broadcast": "node src/broadcaster.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "audit:attribution": "node src/auditAttribution.js"
+    "scrape": "node src/dealScraper.js",
+    "growth": "node -e \"require('dotenv').config(); const g = new (require('./src/growthEngine'))(); g.setupBotCommands().then(() => console.log('Done'));\"",
+    "campaigns": "node -e \"require('dotenv').config(); const r = new (require('./src/affiliateRouter'))(); r.getOpenCampaigns().then(c => console.log(JSON.stringify(c.map(x => x.name || x.advertiser_name), null, 2)));\"",
+    "audit:attribution": "node src/auditAttribution.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "deals",
-    "ecommerce",
-    "affiliate",
-    "cuelinks",
-    "automation"
+    "deals", "ecommerce", "affiliate", "cuelinks", "telegram", "automation", "india"
   ],
   "author": "Azil135-sketch",
   "license": "MIT",
@@ -26,6 +25,7 @@
   "dependencies": {
     "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "form-data": "^4.0.0"
   }
 }

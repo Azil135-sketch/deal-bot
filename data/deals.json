@@ -137,7 +137,7 @@
   {
     "id": "manual-010",
     "source": "tatacliq",
-    "title": "Fastrack Analog Watches for Men",
+    "title": "Fastrack Analog Watch for Men",
     "originalPrice": 2995,
     "discountedPrice": 1199,
     "discount": 60,
@@ -161,13 +161,13 @@
     "trendScore": 7,
     "productUrl": "https://www.nykaa.com/mcaffeine-naked-and-raw-coffee-face-scrub/p/548756",
     "imageUrl": null,
-    "description": "De-tan, exfoliation, anti-aging. Vegan & cruelty free.",
+    "description": "De-tan, exfoliation, anti-aging. Vegan and cruelty free.",
     "timestamp": "2025-01-01T00:00:00.000Z"
   },
   {
     "id": "manual-012",
     "source": "myntra",
-    "title": "Puma Men Running Shoes",
+    "title": "Puma Men Retaliate 2 Running Shoes",
     "originalPrice": 5999,
     "discountedPrice": 2099,
     "discount": 65,
@@ -181,21 +181,6 @@
   },
   {
     "id": "manual-013",
-    "source": "ajio",
-    "title": "Bewakoof Women Graphic Printed Tshirt",
-    "originalPrice": 599,
-    "discountedPrice": 249,
-    "discount": 58,
-    "rating": 4,
-    "reviews": 9600,
-    "trendScore": 6,
-    "productUrl": "https://www.ajio.com/bewakoof-women-graphic-printed-tshirt/p/467069932_black",
-    "imageUrl": null,
-    "description": "100% cotton, regular fit, fun graphic print.",
-    "timestamp": "2025-01-01T00:00:00.000Z"
-  },
-  {
-    "id": "manual-014",
     "source": "nykaa",
     "title": "Lakme Absolute Argan Oil Serum Foundation SPF 45",
     "originalPrice": 875,
@@ -210,7 +195,7 @@
     "timestamp": "2025-01-01T00:00:00.000Z"
   },
   {
-    "id": "manual-015",
+    "id": "manual-014",
     "source": "myntra",
     "title": "Noise Buds VS104 Max TWS Earbuds",
     "originalPrice": 3499,
@@ -222,6 +207,21 @@
     "productUrl": "https://www.myntra.com/earphones/noise/noise-buds-vs104-max-tws-earbuds/25280492/buy",
     "imageUrl": null,
     "description": "50hr battery, ENC mic, 13mm drivers. Bestseller.",
+    "timestamp": "2025-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "manual-015",
+    "source": "ajio",
+    "title": "Bewakoof Women Graphic Printed Cotton Tshirt",
+    "originalPrice": 599,
+    "discountedPrice": 249,
+    "discount": 58,
+    "rating": 4,
+    "reviews": 9600,
+    "trendScore": 6,
+    "productUrl": "https://www.ajio.com/bewakoof-women-graphic-printed-tshirt/p/467069932_black",
+    "imageUrl": null,
+    "description": "100% cotton, regular fit, fun graphic print.",
     "timestamp": "2025-01-01T00:00:00.000Z"
   }
 ]

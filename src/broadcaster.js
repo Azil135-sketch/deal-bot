@@ -89,7 +89,7 @@ class Broadcaster {
         const form = new FormData();
         form.append('chat_id', String(chatId));
         form.append('caption', content);
-        form.append('parse_mode', 'Markdown');
+        form.append('parse_mode', 'HTML');
         form.append('photo', fs.createReadStream(localImage.path));
 
         await axios.post(`${baseUrl}/sendPhoto`, form, {
@@ -105,7 +105,7 @@ class Broadcaster {
     await axios.post(`${baseUrl}/sendMessage`, {
       chat_id: chatId,
       text: content,
-      parse_mode: 'Markdown',
+      parse_mode: 'HTML',
       disable_web_page_preview: false
     }, { timeout: 10000 });
   }

@@ -1,200 +1,179 @@
-# Deal Bot v2.0
+# Deal Bot v3.0
 
-A complete rebuild of the Deal Bot system with proper Cuelinks API integration and product image handling.
+Fully automated deal aggregation and Telegram broadcasting system for India.
 
-## Features
+**What it does:**
+- Scrapes real deals from Desidime, Mydala, and GrabOn automatically (no API keys needed)
+- Converts product URLs to Cuelinks affiliate links (falls back to direct tracking if not approved)
+- Sends deal posts to your Telegram channel with viral sharing prompts
+- Runs on GitHub Actions for free — 4x daily, zero infrastructure cost
 
-- **Cuelinks API Integration**: Generates valid affiliate links using the Cuelinks v2 API
-- **Product Image Extraction**: Automatically fetches and caches product images from source URLs
-- **Multi-Source Support**: Aggregates deals from multiple e-commerce platforms
-- **Modular Architecture**: Clean, maintainable codebase with separated concerns
-- **Error Handling**: Robust error handling and retry logic
-- **Logging**: Comprehensive logging for debugging and monitoring
+---
 
-## Installation
+## Quick Start
 
-1. Clone the repository:
 ```bash
 git clone https://github.com/Azil135-sketch/deal-bot.git
 cd deal-bot
-```
-
-2. Install dependencies:
-```bash
 npm install
-```
-
-3. Configure environment variables:
-```bash
 cp .env.example .env
-# Edit .env with your Cuelinks API credentials
-```
-
-## Configuration
-
-### Required Environment Variables
-
-- `CUELINKS_API_KEY`: Your Cuelinks API key (Bearer token)
-- `CUELINKS_PUBLISHER_ID`: Your Cuelinks publisher ID
-- `CUELINKS_CHANNEL_ID`: Your Cuelinks channel ID
-
-### Optional Environment Variables
-
-- `DEAL_SOURCES`: Comma-separated list of deal sources (default: amazon,flipkart,myntra)
-- `OUTPUT_DIR`: Directory to store generated deals (default: ./deals)
-- `IMAGE_DIR`: Directory to store product images (default: ./deals/images)
-- `LOG_LEVEL`: Logging level (default: info)
-
-## Usage
-
-### Fetch Deals
-```bash
-npm run fetch
-```
-
-### Generate Content
-```bash
-npm run generate
-```
-
-### Broadcast Deals
-```bash
-npm run broadcast
-```
-
-### Run Full Pipeline
-```bash
+# Edit .env — at minimum set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
 npm start
 ```
+
+---
+
+## Setup Guide
+
+### 1. Create your Telegram Bot
+
+1. Open Telegram, search for **@BotFather**
+2. Send `/newbot`, follow prompts
+3. Copy the **bot token** → `TELEGRAM_BOT_TOKEN`
+4. Add the bot as admin to your channel
+5. Get your channel ID → `TELEGRAM_CHAT_ID`
+
+### 2. Cuelinks (for affiliate commissions)
+
+- Register at https://publisher.cuelinks.com
+- Get API Key, Publisher ID, Channel ID
+- Add them to `.env`
+- **Note:** Amazon/Flipkart may need approval. While waiting, the bot uses direct tracking links for Myntra, Ajio, Nykaa, Meesho (these typically approve faster).
+- To see which campaigns are open: `npm run campaigns`
+
+### 3. GitHub Actions (automated, free)
+
+Add these as **repository secrets** (Settings → Secrets → Actions):
+
+| Secret | Value |
+|--------|-------|
+| `TELEGRAM_BOT_TOKEN` | Your bot token |
+| `TELEGRAM_CHAT_ID` | Your channel ID |
+| `TELEGRAM_CHANNEL_USERNAME` | Your channel username (no @) |
+| `TELEGRAM_CHANNEL_INVITE_LINK` | Your invite link |
+| `CUELINKS_API_KEY` | (optional) |
+| `CUELINKS_PUBLISHER_ID` | (optional) |
+| `CUELINKS_CHANNEL_ID` | (optional) |
+
+The workflow runs **4 times daily** at IST: 8:30am, 2:30pm, 8:30pm, 2:30am.
+Enable it: Go to Actions tab → Enable workflows.
+
+---
+
+## How Deals Are Found
+
+**Automatic sources (no keys needed):**
+- Desidime.com — India's largest deal community
+- Mydala.com — Online shopping deals
+- GrabOn.in — Coupons and offers aggregator
+
+**Manual curation (highest quality):**
+- Edit `data/deals.json` with your own hand-picked deals
+- Use the schema in `data/deals.sample.json`
+- Manual deals are always prioritized
+
+All deals pass through quality filters:
+- Minimum 20% discount
+- Minimum ₹200 savings
+- Minimum 3.5 star rating
+- No refurbished/used items
+- No news/blog content
+
+---
+
+## Affiliate Link Logic
+
+The bot tries affiliate links in this order:
+1. **Cuelinks** — if API key is set and the store campaign is active
+2. **Direct tracking params** — UTM/ref parameters for Myntra, Ajio, Nykaa, Meesho
+3. **Raw URL passthrough** — if nothing else works
+
+Set `STRICT_AFFILIATE_ONLY=false` (default) so deals still post while waiting for Cuelinks campaign approvals.
+
+---
+
+## Growing Your Channel
+
+The bot embeds viral sharing prompts in every deal post automatically.
+
+**Manual growth strategies:**
+- Run `npm run growth` to set up bot commands (users can /start, /invite, /about)
+- Share your channel in these communities:
+  - r/india (Reddit) — deal posts welcome
+  - r/IndianGaming, r/IndianStockMarket — niche audiences
+  - WhatsApp family/friend groups
+  - College Telegram groups
+  - Facebook "Online Shopping India" groups
+- Post 2-3 of your best deals manually to other Telegram deal groups
+- List your channel on: channelstore.org, telemetr.io, tgstat.com
+
+**Target communities to share in (join these first):**
+- @AmazonIndiaDeals
+- @onlineshoppingindia
+- @techdeals_india
+- @dealsandcouponsindia
+
+---
 
 ## Project Structure
 
 ```
 deal-bot/
 ├── src/
-│   ├── index.js                 # Main entry point
-│   ├── fetchDeals.js            # Deal fetching logic
-│   ├── contentGenerator.js      # Content generation
-│   ├── broadcaster.js           # Broadcasting logic
-│   ├── cuelinksAPI.js           # Cuelinks API integration
-│   ├── imageHandler.js          # Product image handling
-│   └── logger.js                # Logging utility
+│   ├── index.js              # Orchestrator — runs the full pipeline
+│   ├── fetchDeals.js         # Fetches + dedupes + filters deals
+│   ├── dealScraper.js        # Scrapes Desidime, Mydala, GrabOn
+│   ├── affiliateRouter.js    # Cuelinks + direct tracking fallback
+│   ├── dealIntelligence.js   # Scores and selects top deals
+│   ├── contentGenerator.js   # Formats deal messages
+│   ├── broadcaster.js        # Sends to Telegram, webhooks, etc.
+│   ├── growthEngine.js       # Viral sharing, bot commands, milestones
+│   ├── webhookServer.js      # HTTP server for bot commands (server mode)
+│   ├── cuelinksAPI.js        # Cuelinks API wrapper
+│   ├── imageHandler.js       # Product image download + cache
+│   ├── auditAttribution.js   # Attribution audit vs Cuelinks transactions
+│   └── logger.js             # Logging
 ├── config/
-│   └── constants.js             # Application constants
-├── .env.example                 # Environment variables template
-├── package.json                 # Project dependencies
-└── README.md                    # This file
+│   └── constants.js          # App constants
+├── data/
+│   ├── deals.json            # Hand-curated deals (edit this!)
+│   └── deals.sample.json     # Schema reference
+├── .github/workflows/
+│   └── deal-bot-cron.yml     # GitHub Actions cron (4x daily)
+├── .env.example              # Config template
+└── package.json
 ```
 
-## API Integration
+---
 
-### Cuelinks Link Generation
+## Commands
 
-The bot uses the Cuelinks v2 API to generate affiliate links:
-
-```javascript
-POST https://api.cuelinks.com/v2/links.json
-Authorization: Bearer <API_KEY>
-Content-Type: application/json
-
-{
-  "source_url": "https://example.com/product",
-  "subid": "deal-bot-v2",
-  "channel_id": "your_channel_id"
-}
+```bash
+npm start                # Run full pipeline (fetch → affiliate → broadcast)
+npm run fetch            # Fetch and process deals only
+npm run scrape           # Test scrapers only
+npm run broadcast        # Broadcast to Telegram only
+npm run campaigns        # List open Cuelinks campaigns
+npm run growth           # Set up bot commands on Telegram
+npm run audit:attribution  # Audit affiliate attribution vs Cuelinks
 ```
 
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "link": "https://cuelinks.com/l/xxxxx",
-    "source_url": "https://example.com/product"
-  }
-}
+---
+
+## Server Mode (Replit / VPS)
+
+For continuous operation:
+
+```bash
+BOT_MODE=server RUN_INTERVAL_MINUTES=60 npm start
 ```
 
-## Image Handling
+This starts a webhook server (default port 3000) for bot commands AND runs the pipeline every 60 minutes.
 
-Product images are automatically extracted from source URLs and cached locally:
+Set `TELEGRAM_CHANNEL_INVITE_LINK` in `.env` for bot commands to include the invite link.
 
-- Images are downloaded and stored in `IMAGE_DIR`
-- Duplicate images are detected and reused
-- Failed image downloads do not block the deal processing
-- Image URLs are included in the generated content
-
-## Error Handling
-
-The bot implements comprehensive error handling:
-
-- Retry logic for failed API calls
-- Graceful degradation when images cannot be fetched
-- Detailed error logging for debugging
-- Validation of configuration and input data
-
-## Logging
-
-Logs are written to the console and can be configured via `LOG_LEVEL`:
-
-- `error`: Only errors
-- `warn`: Warnings and errors
-- `info`: General information, warnings, and errors (default)
-- `debug`: Detailed debugging information
-
-
-## Production Setup (Affiliate + Automation)
-
-### 1) Verify Cuelinks attribution (no "hole in pocket")
-- Every generated affiliate link now stores `{ dealId, sourceUrl, affiliateLink, subId, generatedAt }` in `./deals/affiliate-attribution-log.json`.
-- Run attribution audit against Cuelinks transactions:
-  ```bash
-  npm run audit:attribution
-  ```
-- This compares stored subIds with recent transactions to show matched vs unmatched attribution.
-
-### 2) Prevent repeated deals
-- The bot stores processed deal fingerprints in `./deals/processed-deals.json`.
-- Duplicate deals in a run and previously processed deals are automatically skipped.
-- Only successfully affiliated deals are marked as processed to avoid losing retries when Cuelinks fails.
-
-### 3) Upgrade deal quality with intelligence filters
-- `src/dealIntelligence.js` scores deals using weighted factors:
-  - discount percentage
-  - absolute savings
-  - rating and review depth
-  - optional trend score
-- Hard quality floors are configurable via:
-  - `MIN_DISCOUNT_PERCENT`
-  - `MIN_SAVINGS_AMOUNT`
-  - `MIN_RATING`
-  - `BLOCKED_KEYWORDS`
-  - `MAX_DEALS_PER_RUN`
-
-### 4) Feed real deals
-- Set `DEALS_FILE=./data/deals.json` and provide a JSON array of deals.
-- A sample schema is available at `data/deals.sample.json`.
-
-### 5) Automation
-- `RUN_INTERVAL_MINUTES` can run the bot continuously in one process (`0` = one-shot).
-- GitHub Actions workflow exists at `.github/workflows/deal-bot-cron.yml` (hourly + manual dispatch).
-- Add repository secrets for Cuelinks and Telegram before enabling production schedules.
-
-### 6) Distribution beyond Telegram
-- Telegram sends real messages through Bot API when credentials are set.
-- `DISTRIBUTION_WEBHOOKS` supports comma-separated webhook URLs (Zapier/Make/custom) for outsourced amplification pipelines.
-
-### 7) Better persuasion content
-- Content generation now uses decision psychology structure:
-  - value anchor
-  - social proof signal
-  - urgency framing
-  - low-friction decision cue
+---
 
 ## License
 
 MIT
-
-## Support
-
-For issues or questions, please open an issue on GitHub.

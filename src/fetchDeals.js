@@ -1,58 +1,63 @@
 /**
  * Fetch Deals Module
- * Aggregates deals from various e-commerce sources
+ * Aggregates deals from:
+ *   1. Manual JSON file (DEALS_FILE) — curated, highest quality
+ *   2. DealScraper — auto scrapes Desidime, Mydala, GrabOn
+ * Then dedupes, history-filters, and runs DealIntelligence scoring.
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const logger = require('./logger');
-const CuelinksAPI = require('./cuelinksAPI');
+const AffiliateRouter = require('./affiliateRouter');
 const ImageHandler = require('./imageHandler');
 const DealIntelligence = require('./dealIntelligence');
+const DealScraper = require('./dealScraper');
 
 class DealFetcher {
   constructor() {
-    this.cuelinksAPI = new CuelinksAPI();
+    this.affiliateRouter = new AffiliateRouter();
     this.imageHandler = new ImageHandler();
     this.deals = [];
     this.outputDir = process.env.OUTPUT_DIR || './deals';
     this.processedDealsFile = path.join(this.outputDir, 'processed-deals.json');
     this.attributionFile = path.join(this.outputDir, 'affiliate-attribution-log.json');
     this.dealIntelligence = new DealIntelligence();
-    this.strictAffiliateOnly = (process.env.STRICT_AFFILIATE_ONLY || 'true').toLowerCase() !== 'false';
+    this.dealScraper = new DealScraper();
+    this.strictAffiliateOnly = (process.env.STRICT_AFFILIATE_ONLY || 'false').toLowerCase() === 'true';
     this.processedDealTtlHours = Number(process.env.PROCESSED_DEAL_TTL_HOURS || 24);
   }
 
   /**
    * Fetch deals from all configured sources
-   * @returns {Promise<Array>} - Array of deal objects
+   * @returns {Promise<Array>}
    */
   async fetchAllDeals() {
     logger.info('Starting deal fetching process');
 
     try {
-      // Fetch from Amazon
-      const amazonDeals = await this.fetchAmazonDeals();
-      this.deals.push(...amazonDeals);
+      const allDeals = [];
 
-      // Fetch from Flipkart
-      const flipkartDeals = await this.fetchFlipkartDeals();
-      this.deals.push(...flipkartDeals);
-
-      // Fetch from Myntra
-      const myntraDeals = await this.fetchMyntraDeals();
-      this.deals.push(...myntraDeals);
-
-      // Optional JSON feed for production-like runs
+      // Priority 1: manual JSON feed (curated deals)
       const fileDeals = await this.fetchDealsFromFile();
-      this.deals.push(...fileDeals);
+      allDeals.push(...fileDeals);
+      logger.info(`File source: ${fileDeals.length} deals`);
 
-      const dedupedDeals = this.deduplicateDeals(this.deals);
+      // Priority 2: auto web scrapers
+      const scrapedDeals = await this.dealScraper.scrapeAll();
+      allDeals.push(...scrapedDeals);
+      logger.info(`Web scrapers: ${scrapedDeals.length} deals`);
+
+      const dedupedDeals = this.deduplicateDeals(allDeals);
       const newDeals = this.filterAlreadyProcessedDeals(dedupedDeals);
       const selectedDeals = this.dealIntelligence.selectTopDeals(newDeals);
 
-      logger.info(`Fetched ${this.deals.length} deals total, ${newDeals.length} new after dedupe/history checks, ${selectedDeals.length} after intelligence filter`);
+      logger.info(
+        `Total: ${allDeals.length} raw | ${dedupedDeals.length} deduped | ` +
+        `${newDeals.length} new | ${selectedDeals.length} after intelligence filter`
+      );
+
       this.deals = selectedDeals;
       return this.deals;
     } catch (error) {
@@ -62,77 +67,11 @@ class DealFetcher {
   }
 
   /**
-   * Fetch deals from Amazon
-   * @private
-   */
-  async fetchAmazonDeals() {
-    logger.info('Fetching Amazon deals');
-
-    try {
-      // This is a placeholder - in production, you would use:
-      // - Amazon Product Advertising API
-      // - Web scraping (with proper rate limiting and headers)
-      // - RSS feeds if available
-      // - Third-party deal aggregation APIs
-
-      const deals = [];
-
-      logger.debug(`Fetched ${deals.length} deals from Amazon`);
-      return deals;
-    } catch (error) {
-      logger.warn('Error fetching Amazon deals', { error: error.message });
-      return [];
-    }
-  }
-
-  /**
-   * Fetch deals from Flipkart
-   * @private
-   */
-  async fetchFlipkartDeals() {
-    logger.info('Fetching Flipkart deals');
-
-    try {
-      // Placeholder for Flipkart deal fetching
-      const deals = [];
-
-      logger.debug(`Fetched ${deals.length} deals from Flipkart`);
-      return deals;
-    } catch (error) {
-      logger.warn('Error fetching Flipkart deals', { error: error.message });
-      return [];
-    }
-  }
-
-  /**
-   * Fetch deals from Myntra
-   * @private
-   */
-  async fetchMyntraDeals() {
-    logger.info('Fetching Myntra deals');
-
-    try {
-      // Placeholder for Myntra deal fetching
-      const deals = [];
-
-      logger.debug(`Fetched ${deals.length} deals from Myntra`);
-      return deals;
-    } catch (error) {
-      logger.warn('Error fetching Myntra deals', { error: error.message });
-      return [];
-    }
-  }
-
-  /**
    * Optionally load deals from a JSON file path in DEALS_FILE
-   * @returns {Promise<Array>}
    */
   async fetchDealsFromFile() {
     const dealsFile = process.env.DEALS_FILE;
-
-    if (!dealsFile) {
-      return [];
-    }
+    if (!dealsFile) return [];
 
     try {
       const absolutePath = path.resolve(dealsFile);
@@ -141,77 +80,53 @@ class DealFetcher {
         return [];
       }
 
-      const raw = fs.readFileSync(absolutePath, 'utf8');
+      const raw = fs.readFileSync(absolutePath, 'utf8').trim();
+      if (!raw || raw === '[]') return [];
+
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) {
-        logger.warn('DEALS_FILE must contain a JSON array of deals');
+        logger.warn('DEALS_FILE must contain a JSON array');
         return [];
       }
 
-      logger.info(`Loaded ${parsed.length} deals from DEALS_FILE`);
       return parsed;
     } catch (error) {
-      logger.warn('Failed loading deals from DEALS_FILE', { error: error.message });
+      logger.warn('Failed loading DEALS_FILE', { error: error.message });
       return [];
     }
   }
 
-  /**
-   * Remove duplicate deals from current run using id/url fingerprint
-   * @param {Array} deals
-   * @returns {Array}
-   */
   deduplicateDeals(deals) {
     const seen = new Set();
-
     return deals.filter(deal => {
       const fingerprint = this._buildDealFingerprint(deal);
-      if (seen.has(fingerprint)) {
-        return false;
-      }
-
+      if (seen.has(fingerprint)) return false;
       seen.add(fingerprint);
       return true;
     });
   }
 
-  /**
-   * Remove deals already processed in previous runs
-   * @param {Array} deals
-   * @returns {Array}
-   */
   filterAlreadyProcessedDeals(deals) {
     const historyMap = this._readProcessedHistoryMap();
-
     return deals.filter(deal => {
       const fingerprint = this._buildDealFingerprint(deal);
       return !this._isFingerprintBlocked(fingerprint, historyMap);
     });
   }
 
-  /**
-   * Persist processed deal fingerprints for future dedupe
-   * @param {Array} deals
-   */
   markDealsAsProcessed(deals) {
     try {
       if (!fs.existsSync(this.outputDir)) {
         fs.mkdirSync(this.outputDir, { recursive: true });
       }
-
       const existing = this._readProcessedHistoryMap();
       const nowIso = new Date().toISOString();
-
       deals.forEach(deal => {
-        const fingerprint = this._buildDealFingerprint(deal);
-        existing[fingerprint] = nowIso;
+        existing[this._buildDealFingerprint(deal)] = nowIso;
       });
-
       const pruned = this._pruneExpiredHistory(existing);
       this._writeJsonFile(this.processedDealsFile, pruned);
-      logger.info(`Saved ${deals.length} processed deals to history`, {
-        ttlHours: this.processedDealTtlHours
-      });
+      logger.info(`Saved ${deals.length} processed deals to history`);
     } catch (error) {
       logger.warn('Failed to persist processed deals history', { error: error.message });
     }
@@ -219,53 +134,29 @@ class DealFetcher {
 
   _readProcessedHistoryMap() {
     const parsed = this._readJsonFile(this.processedDealsFile, {});
-
     if (Array.isArray(parsed)) {
-      // Backward compatibility with legacy array format.
       const nowIso = new Date().toISOString();
-      return parsed.reduce((acc, fingerprint) => {
-        acc[fingerprint] = nowIso;
-        return acc;
-      }, {});
+      return parsed.reduce((acc, fp) => { acc[fp] = nowIso; return acc; }, {});
     }
-
-    if (!parsed || typeof parsed !== 'object') {
-      return {};
-    }
-
+    if (!parsed || typeof parsed !== 'object') return {};
     return parsed;
   }
 
   _isFingerprintBlocked(fingerprint, historyMap) {
     const processedAt = historyMap[fingerprint];
-    if (!processedAt) {
-      return false;
-    }
-
-    if (this.processedDealTtlHours <= 0) {
-      return true;
-    }
-
-    const processedTime = new Date(processedAt).getTime();
-    if (Number.isNaN(processedTime)) {
-      return false;
-    }
-
-    const ageMs = Date.now() - processedTime;
-    return ageMs < this.processedDealTtlHours * 60 * 60 * 1000;
+    if (!processedAt) return false;
+    if (this.processedDealTtlHours <= 0) return true;
+    const ageMs = Date.now() - new Date(processedAt).getTime();
+    if (Number.isNaN(ageMs)) return false;
+    return ageMs < this.processedDealTtlHours * 3600 * 1000;
   }
 
   _pruneExpiredHistory(historyMap) {
-    if (this.processedDealTtlHours <= 0) {
-      return historyMap;
-    }
-
-    const cutoffMs = Date.now() - this.processedDealTtlHours * 60 * 60 * 1000;
-    return Object.entries(historyMap).reduce((acc, [fingerprint, processedAt]) => {
-      const ts = new Date(processedAt).getTime();
-      if (!Number.isNaN(ts) && ts >= cutoffMs) {
-        acc[fingerprint] = processedAt;
-      }
+    if (this.processedDealTtlHours <= 0) return historyMap;
+    const cutoffMs = Date.now() - this.processedDealTtlHours * 3600 * 1000;
+    return Object.entries(historyMap).reduce((acc, [fp, ts]) => {
+      const t = new Date(ts).getTime();
+      if (!Number.isNaN(t) && t >= cutoffMs) acc[fp] = ts;
       return acc;
     }, {});
   }
@@ -275,21 +166,13 @@ class DealFetcher {
     return crypto.createHash('sha1').update(String(base)).digest('hex');
   }
 
-  /**
-   * Persist affiliate mapping data for reconciliation with Cuelinks reports
-   * @param {Object} record
-   */
   saveAttributionRecord(record) {
     try {
-      if (!fs.existsSync(this.outputDir)) {
-        fs.mkdirSync(this.outputDir, { recursive: true });
-      }
-
+      if (!fs.existsSync(this.outputDir)) fs.mkdirSync(this.outputDir, { recursive: true });
       const existing = this._readJsonFile(this.attributionFile, []);
-      const attributionRecords = Array.isArray(existing) ? existing : [];
-
-      attributionRecords.push(record);
-      this._writeJsonFile(this.attributionFile, attributionRecords);
+      const records = Array.isArray(existing) ? existing : [];
+      records.push(record);
+      this._writeJsonFile(this.attributionFile, records);
     } catch (error) {
       logger.warn('Failed to persist attribution record', { error: error.message });
     }
@@ -297,30 +180,13 @@ class DealFetcher {
 
   _readJsonFile(filePath, fallback) {
     try {
-      if (!fs.existsSync(filePath)) {
-        return fallback;
-      }
-
+      if (!fs.existsSync(filePath)) return fallback;
       const raw = fs.readFileSync(filePath, 'utf8').trim();
-      if (!raw) {
-        return fallback;
-      }
-
+      if (!raw) return fallback;
       return JSON.parse(raw);
     } catch (error) {
-      logger.warn('Failed parsing JSON file; using fallback and preserving invalid file', {
-        filePath,
-        error: error.message
-      });
-
-      const invalidFilePath = `${filePath}.invalid-${Date.now()}`;
-      try {
-        fs.renameSync(filePath, invalidFilePath);
-        logger.warn('Moved invalid JSON file', { filePath, invalidFilePath });
-      } catch (renameError) {
-        logger.warn('Could not move invalid JSON file', { filePath, error: renameError.message });
-      }
-
+      logger.warn('Failed parsing JSON file, using fallback', { filePath, error: error.message });
+      try { fs.renameSync(filePath, `${filePath}.invalid-${Date.now()}`); } catch {}
       return fallback;
     }
   }
@@ -329,124 +195,84 @@ class DealFetcher {
     fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`);
   }
 
-  /**
-   * Build a deterministic subId for click/revenue attribution.
-   * @param {Object} deal
-   * @returns {string}
-   */
   buildSubId(deal) {
-    const raw = `${deal.id || 'deal'}-${Date.now()}`;
-    return raw.replace(/[^a-zA-Z0-9-_]/g, '').slice(0, 48);
+    return `${deal.id || 'deal'}-${Date.now()}`.replace(/[^a-zA-Z0-9-_]/g, '').slice(0, 48);
   }
 
   /**
-   * Process deals with Cuelinks affiliate links and images
-   * @returns {Promise<Array>} - Processed deals with affiliate links
+   * Process deals — get affiliate links via AffiliateRouter, download images.
+   * AffiliateRouter tries Cuelinks first, then direct tracking params, then passthrough.
+   * STRICT_AFFILIATE_ONLY defaults to false so deals post even without Cuelinks approval.
    */
   async processDealsWithAffiliateLinks() {
-    logger.info('Processing deals with Cuelinks affiliate links');
+    logger.info(`Processing ${this.deals.length} deals for affiliate links`);
 
     const processedDeals = [];
-    const successfullyAffiliatedDeals = [];
-    const rejectedDeals = [];
+    const affiliatedDeals = [];
 
     for (const deal of this.deals) {
       const subId = this.buildSubId(deal);
 
       try {
-        // Generate Cuelinks affiliate link
-        const linkData = await this.cuelinksAPI.generateLink(
-          deal.productUrl,
-          subId
-        );
+        const { link, method } = await this.affiliateRouter.getAffiliateLink(deal.productUrl, subId);
+        deal.affiliateLink = link;
+        deal.affiliateMethod = method;
 
-        deal.affiliateLink = linkData.link || deal.productUrl;
-
-        const isAffiliated = deal.affiliateLink.includes('cuelinks.com');
-
-        if (!isAffiliated) {
-          logger.warn(`Cuelinks returned a non-cuelinks URL for ${deal.id}`, {
-            affiliateLink: deal.affiliateLink
-          });
-        }
-
-        logger.debug(`Generated affiliate link for ${deal.id}`, {
-          sourceUrl: deal.productUrl,
-          affiliateLink: deal.affiliateLink
-        });
+        const isCuelinks = method === 'cuelinks';
+        if (isCuelinks) affiliatedDeals.push(deal);
 
         this.saveAttributionRecord({
           dealId: deal.id,
           sourceUrl: deal.productUrl,
           affiliateLink: deal.affiliateLink,
+          method,
           subId,
           generatedAt: new Date().toISOString()
         });
 
-        if (isAffiliated) {
-          successfullyAffiliatedDeals.push(deal);
+        if (!this.strictAffiliateOnly || isCuelinks) {
           processedDeals.push(deal);
-        } else if (this.strictAffiliateOnly) {
-          rejectedDeals.push({ id: deal.id, reason: 'non_cuelinks_affiliate_link' });
-          logger.warn(`Skipping unaffiliated deal ${deal.id} due to STRICT_AFFILIATE_ONLY=true`);
         } else {
-          processedDeals.push(deal);
+          logger.warn(`Skipping deal ${deal.id} — STRICT_AFFILIATE_ONLY=true and no Cuelinks link`);
         }
 
-        // Download product image
         if (deal.imageUrl) {
-          const imageData = await this.imageHandler.downloadImage(
-            deal.imageUrl,
-            deal.id
-          );
-          deal.localImage = imageData;
+          try {
+            deal.localImage = await this.imageHandler.downloadImage(deal.imageUrl, deal.id);
+          } catch {}
         }
 
       } catch (error) {
         logger.warn(`Error processing deal ${deal.id}`, { error: error.message });
         deal.affiliateLink = deal.productUrl;
+        deal.affiliateMethod = 'passthrough';
         this.saveAttributionRecord({
-          dealId: deal.id,
-          sourceUrl: deal.productUrl,
-          affiliateLink: deal.productUrl,
-          subId,
-          generatedAt: new Date().toISOString(),
-          error: error.message
+          dealId: deal.id, sourceUrl: deal.productUrl,
+          affiliateLink: deal.productUrl, method: 'passthrough',
+          subId, generatedAt: new Date().toISOString(), error: error.message
         });
-        if (this.strictAffiliateOnly) {
-          rejectedDeals.push({ id: deal.id, reason: 'affiliate_generation_error', error: error.message });
-          logger.warn(`Skipping unaffiliated deal ${deal.id} due to STRICT_AFFILIATE_ONLY=true`);
-        } else {
-          processedDeals.push(deal);
-        }
+        if (!this.strictAffiliateOnly) processedDeals.push(deal);
       }
     }
 
-    this.markDealsAsProcessed(successfullyAffiliatedDeals);
+    this.markDealsAsProcessed(affiliatedDeals.length > 0 ? affiliatedDeals : processedDeals);
 
     logger.info(`Processed ${processedDeals.length} deals`, {
-      affiliated: successfullyAffiliatedDeals.length,
-      rejected: rejectedDeals.length,
+      affiliated: affiliatedDeals.length,
       strictAffiliateOnly: this.strictAffiliateOnly
     });
+
     return processedDeals;
   }
 }
 
-// Main execution
 async function main() {
   try {
     require('dotenv').config();
-
     const fetcher = new DealFetcher();
-    const deals = await fetcher.fetchAllDeals();
+    await fetcher.fetchAllDeals();
     const processedDeals = await fetcher.processDealsWithAffiliateLinks();
-
-    logger.info('Deal fetching completed successfully', {
-      totalDeals: processedDeals.length
-    });
-
-    // Output deals as JSON
+    logger.info('Deal fetching completed', { totalDeals: processedDeals.length });
     console.log(JSON.stringify(processedDeals, null, 2));
   } catch (error) {
     logger.error('Fatal error in deal fetching', { error: error.message });
@@ -454,8 +280,6 @@ async function main() {
   }
 }
 
-if (require.main === module) {
-  main();
-}
+if (require.main === module) main();
 
 module.exports = DealFetcher;

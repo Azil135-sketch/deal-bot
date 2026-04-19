@@ -33,10 +33,6 @@ name: Deal Bot Automation
             TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
             TELEGRAM_CHANNEL_USERNAME: ${{ secrets.TELEGRAM_CHANNEL_USERNAME }}
             TELEGRAM_CHANNEL_INVITE_LINK: ${{ secrets.TELEGRAM_CHANNEL_INVITE_LINK }}
-            REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-            REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-            REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
-            REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
             DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
             GITHUB_TOKEN: ${{ github.token }}
             GITHUB_REPO: ${{ github.repository }}

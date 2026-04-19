@@ -1,1 +1,62 @@
-[]
+[
+  {
+    "id": "manual-001",
+    "source": "myntra",
+    "title": "boAt Rockerz 450 Bluetooth On-Ear Headphones",
+    "originalPrice": 2990,
+    "discountedPrice": 999,
+    "discount": 67,
+    "rating": 4.2,
+    "reviews": 312000,
+    "trendScore": 9,
+    "productUrl": "https://www.myntra.com/headphones/boat/boat-rockerz-450-bluetooth-on-ear-headphone-with-upto-15-hours-playback-40mm-drivers-padded-ear-cushions-integrated-controls-and-mic-black/11395002/buy",
+    "imageUrl": null,
+    "description": "15 hr battery, 40mm driver, padded cushions, integrated mic.",
+    "timestamp": "2026-04-19T00:00:00.000Z"
+  },
+  {
+    "id": "manual-002",
+    "source": "ajio",
+    "title": "Roadster Men's Slim Fit Jeans",
+    "originalPrice": 1999,
+    "discountedPrice": 699,
+    "discount": 65,
+    "rating": 4.1,
+    "reviews": 45000,
+    "trendScore": 7,
+    "productUrl": "https://www.ajio.com/roadster-men-slim-fit-jeans/p/460466085_navy",
+    "imageUrl": null,
+    "description": "Slim fit, mid-rise, 5-pocket style.",
+    "timestamp": "2026-04-19T00:00:00.000Z"
+  },
+  {
+    "id": "manual-003",
+    "source": "nykaa",
+    "title": "Mamaearth Vitamin C Face Serum 30ml",
+    "originalPrice": 599,
+    "discountedPrice": 299,
+    "discount": 50,
+    "rating": 4.3,
+    "reviews": 28000,
+    "trendScore": 8,
+    "productUrl": "https://www.nykaa.com/mamaearth-vitamin-c-face-serum-for-skin-illumination-with-vitamin-c-and-turmeric/p/1060892",
+    "imageUrl": null,
+    "description": "With Turmeric for skin illumination. Dermatologically tested.",
+    "timestamp": "2026-04-19T00:00:00.000Z"
+  },
+  {
+    "id": "manual-004",
+    "source": "meesho",
+    "title": "Portronics Harmonics Z4 Wireless Earphones",
+    "originalPrice": 1299,
+    "discountedPrice": 499,
+    "discount": 62,
+    "rating": 3.9,
+    "reviews": 8500,
+    "trendScore": 6,
+    "productUrl": "https://www.meesho.com/portronics-harmonics-z4-wireless-earphones/p/2qbxfv",
+    "imageUrl": null,
+    "description": "18hr playback, magnetic charging, IPX4 water resistant.",
+    "timestamp": "2026-04-19T00:00:00.000Z"
+  }
+]

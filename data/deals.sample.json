@@ -12,6 +12,36 @@
     "productUrl": "https://www.amazon.in/dp/B0EXAMPLE01",
     "imageUrl": null,
     "description": "40-hour battery, hybrid ANC, premium codec support.",
-    "timestamp": "2026-04-17T00:00:00.000Z"
+    "timestamp": "2026-04-19T00:00:00.000Z"
+  },
+  {
+    "id": "sample-002",
+    "source": "myntra",
+    "title": "boAt Airdopes 141 TWS Earbuds",
+    "originalPrice": 2499,
+    "discountedPrice": 899,
+    "discount": 64,
+    "rating": 4.1,
+    "reviews": 195000,
+    "trendScore": 9,
+    "productUrl": "https://www.myntra.com/earphones/boat/boat-airdopes-141-tws-earbuds-with-42hr-total-playback/13315178/buy",
+    "imageUrl": null,
+    "description": "42hr total playback, IPX4 water resistant, fast charging.",
+    "timestamp": "2026-04-19T00:00:00.000Z"
+  },
+  {
+    "id": "sample-003",
+    "source": "nykaa",
+    "title": "The Ordinary Hyaluronic Acid 2% + B5 30ml",
+    "originalPrice": 700,
+    "discountedPrice": 490,
+    "discount": 30,
+    "rating": 4.5,
+    "reviews": 42000,
+    "trendScore": 7,
+    "productUrl": "https://www.nykaa.com/the-ordinary-hyaluronic-acid-2-b5/p/1028742",
+    "imageUrl": null,
+    "description": "Deep hydration serum. Dermatologist approved.",
+    "timestamp": "2026-04-19T00:00:00.000Z"
   }
 ]

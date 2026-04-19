@@ -15,6 +15,13 @@ class DealIntelligence {
       .split(',')
       .map(keyword => keyword.trim().toLowerCase())
       .filter(Boolean);
+    this.allowedDealDomains = (process.env.ALLOWED_DEAL_DOMAINS || 'amazon.,flipkart.,myntra.,ajio.,nykaa.,tatacliq.,croma.,reliancedigital.,meesho.,snapdeal.')
+      .split(',')
+      .map(domain => domain.trim().toLowerCase())
+      .filter(Boolean);
+    this.rejectNewsContent = (process.env.REJECT_NEWS_CONTENT || 'true').toLowerCase() !== 'false';
+    this.newsPathPatterns = ['/news', '/article', '/story', '/opinion', '/live-blog', '/analysis'];
+    this.nonCommerceHostMarkers = ['news', 'blog', 'medium', 'substack', 'youtube', 'reddit', 'x.com', 'twitter'];
   }
 
   /**
@@ -23,14 +30,90 @@ class DealIntelligence {
    * @returns {Array}
    */
   selectTopDeals(deals) {
+    const rejectedByReason = {
+      invalid: 0,
+      quality: 0
+    };
+
     const scoredDeals = deals
+      .filter(deal => {
+        const valid = this.isValidDealCandidate(deal);
+        if (!valid) rejectedByReason.invalid += 1;
+        return valid;
+      })
       .map(deal => this.scoreDeal(deal))
-      .filter(deal => this.passesQualityFloor(deal))
+      .filter(deal => {
+        const pass = this.passesQualityFloor(deal);
+        if (!pass) rejectedByReason.quality += 1;
+        return pass;
+      })
       .sort((a, b) => b.qualityScore - a.qualityScore)
       .slice(0, this.maxDealsPerRun);
 
-    logger.info(`Deal intelligence selected ${scoredDeals.length}/${deals.length} deals`);
+    logger.info(`Deal intelligence selected ${scoredDeals.length}/${deals.length} deals`, rejectedByReason);
     return scoredDeals;
+  }
+
+  /**
+   * Reject non-product/news-like inputs before scoring.
+   * @param {Object} deal
+   * @returns {boolean}
+   */
+  isValidDealCandidate(deal) {
+    if (!deal || typeof deal !== 'object') {
+      return false;
+    }
+
+    const title = String(deal.title || '').trim();
+    const productUrl = String(deal.productUrl || '').trim();
+    const originalPrice = Number(deal.originalPrice || 0);
+    const discountedPrice = Number(deal.discountedPrice || 0);
+
+    if (!title || !productUrl || !Number.isFinite(originalPrice) || !Number.isFinite(discountedPrice)) {
+      return false;
+    }
+
+    if (originalPrice <= 0 || discountedPrice <= 0 || discountedPrice >= originalPrice) {
+      return false;
+    }
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(productUrl);
+    } catch {
+      return false;
+    }
+
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return false;
+    }
+
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const pathname = parsedUrl.pathname.toLowerCase();
+    const normalizedTitle = title.toLowerCase();
+
+    if (this.rejectNewsContent) {
+      if (this.nonCommerceHostMarkers.some(marker => hostname.includes(marker))) {
+        return false;
+      }
+
+      if (this.newsPathPatterns.some(pattern => pathname.includes(pattern))) {
+        return false;
+      }
+
+      if (/\b(news|headline|breaking|report|analysis|opinion)\b/i.test(normalizedTitle)) {
+        return false;
+      }
+    }
+
+    if (this.allowedDealDomains.length > 0) {
+      const inAllowedDomain = this.allowedDealDomains.some(allowed => hostname.includes(allowed));
+      if (!inAllowedDomain) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**

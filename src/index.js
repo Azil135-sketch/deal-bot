@@ -46,6 +46,16 @@ class DealBotOrchestrator {
 
       logger.info(`Processed ${processedDeals.length} deals`);
 
+      if (processedDeals.length === 0) {
+        logger.warn('No affiliated deals available after processing, skipping content generation and broadcast');
+        return {
+          success: true,
+          dealsProcessed: 0,
+          broadcast: null,
+          message: 'No affiliated deals available'
+        };
+      }
+
       // Step 3: Generate content
       logger.info('Step 3: Generating content for deals');
       const contentByPlatform = {
@@ -109,16 +119,26 @@ if (require.main === module) {
 
   if (intervalMinutes > 0) {
     logger.info(`Scheduler mode enabled. Running every ${intervalMinutes} minute(s).`);
+    let isRunInProgress = false;
 
-    main(false).catch(error => {
-      logger.error('Initial scheduled run failed', { error: error.message });
-    });
+    const executeScheduledRun = async () => {
+      if (isRunInProgress) {
+        logger.warn('Skipping scheduled run because a previous run is still in progress');
+        return;
+      }
 
-    setInterval(() => {
-      main(false).catch(error => {
+      isRunInProgress = true;
+      try {
+        await main(false);
+      } catch (error) {
         logger.error('Scheduled run failed', { error: error.message });
-      });
-    }, intervalMinutes * 60 * 1000);
+      } finally {
+        isRunInProgress = false;
+      }
+    };
+
+    executeScheduledRun();
+    setInterval(executeScheduledRun, intervalMinutes * 60 * 1000);
   } else {
     main();
   }

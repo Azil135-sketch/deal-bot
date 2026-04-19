@@ -108,6 +108,7 @@ class ContentGenerator {
    * Build psychologically-informed marketing hooks
    * @param {number} discount
    * @param {number} savings
+   * @param {number} qualityScore
    * @returns {string}
    */
   getPsychologyTrigger(discount, savings, qualityScore) {

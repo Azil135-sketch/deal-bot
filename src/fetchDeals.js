@@ -20,6 +20,8 @@ class DealFetcher {
     this.processedDealsFile = path.join(this.outputDir, 'processed-deals.json');
     this.attributionFile = path.join(this.outputDir, 'affiliate-attribution-log.json');
     this.dealIntelligence = new DealIntelligence();
+    this.strictAffiliateOnly = (process.env.STRICT_AFFILIATE_ONLY || 'true').toLowerCase() !== 'false';
+    this.processedDealTtlHours = Number(process.env.PROCESSED_DEAL_TTL_HOURS || 24);
   }
 
   /**
@@ -179,9 +181,12 @@ class DealFetcher {
    * @returns {Array}
    */
   filterAlreadyProcessedDeals(deals) {
-    const history = this._readProcessedHistory();
+    const historyMap = this._readProcessedHistoryMap();
 
-    return deals.filter(deal => !history.includes(this._buildDealFingerprint(deal)));
+    return deals.filter(deal => {
+      const fingerprint = this._buildDealFingerprint(deal);
+      return !this._isFingerprintBlocked(fingerprint, historyMap);
+    });
   }
 
   /**
@@ -194,30 +199,75 @@ class DealFetcher {
         fs.mkdirSync(this.outputDir, { recursive: true });
       }
 
-      const existing = this._readProcessedHistory();
-      const incoming = deals.map(deal => this._buildDealFingerprint(deal));
-      const merged = [...new Set([...existing, ...incoming])];
+      const existing = this._readProcessedHistoryMap();
+      const nowIso = new Date().toISOString();
 
-      fs.writeFileSync(this.processedDealsFile, JSON.stringify(merged, null, 2));
-      logger.info(`Saved ${incoming.length} processed deals to history`);
+      deals.forEach(deal => {
+        const fingerprint = this._buildDealFingerprint(deal);
+        existing[fingerprint] = nowIso;
+      });
+
+      const pruned = this._pruneExpiredHistory(existing);
+      this._writeJsonFile(this.processedDealsFile, pruned);
+      logger.info(`Saved ${deals.length} processed deals to history`, {
+        ttlHours: this.processedDealTtlHours
+      });
     } catch (error) {
       logger.warn('Failed to persist processed deals history', { error: error.message });
     }
   }
 
-  _readProcessedHistory() {
-    try {
-      if (!fs.existsSync(this.processedDealsFile)) {
-        return [];
-      }
+  _readProcessedHistoryMap() {
+    const parsed = this._readJsonFile(this.processedDealsFile, {});
 
-      const raw = fs.readFileSync(this.processedDealsFile, 'utf8');
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      logger.warn('Failed reading processed deals history', { error: error.message });
-      return [];
+    if (Array.isArray(parsed)) {
+      // Backward compatibility with legacy array format.
+      const nowIso = new Date().toISOString();
+      return parsed.reduce((acc, fingerprint) => {
+        acc[fingerprint] = nowIso;
+        return acc;
+      }, {});
     }
+
+    if (!parsed || typeof parsed !== 'object') {
+      return {};
+    }
+
+    return parsed;
+  }
+
+  _isFingerprintBlocked(fingerprint, historyMap) {
+    const processedAt = historyMap[fingerprint];
+    if (!processedAt) {
+      return false;
+    }
+
+    if (this.processedDealTtlHours <= 0) {
+      return true;
+    }
+
+    const processedTime = new Date(processedAt).getTime();
+    if (Number.isNaN(processedTime)) {
+      return false;
+    }
+
+    const ageMs = Date.now() - processedTime;
+    return ageMs < this.processedDealTtlHours * 60 * 60 * 1000;
+  }
+
+  _pruneExpiredHistory(historyMap) {
+    if (this.processedDealTtlHours <= 0) {
+      return historyMap;
+    }
+
+    const cutoffMs = Date.now() - this.processedDealTtlHours * 60 * 60 * 1000;
+    return Object.entries(historyMap).reduce((acc, [fingerprint, processedAt]) => {
+      const ts = new Date(processedAt).getTime();
+      if (!Number.isNaN(ts) && ts >= cutoffMs) {
+        acc[fingerprint] = processedAt;
+      }
+      return acc;
+    }, {});
   }
 
   _buildDealFingerprint(deal) {
@@ -235,15 +285,48 @@ class DealFetcher {
         fs.mkdirSync(this.outputDir, { recursive: true });
       }
 
-      const existing = fs.existsSync(this.attributionFile)
-        ? JSON.parse(fs.readFileSync(this.attributionFile, 'utf8'))
-        : [];
+      const existing = this._readJsonFile(this.attributionFile, []);
+      const attributionRecords = Array.isArray(existing) ? existing : [];
 
-      existing.push(record);
-      fs.writeFileSync(this.attributionFile, JSON.stringify(existing, null, 2));
+      attributionRecords.push(record);
+      this._writeJsonFile(this.attributionFile, attributionRecords);
     } catch (error) {
       logger.warn('Failed to persist attribution record', { error: error.message });
     }
+  }
+
+  _readJsonFile(filePath, fallback) {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return fallback;
+      }
+
+      const raw = fs.readFileSync(filePath, 'utf8').trim();
+      if (!raw) {
+        return fallback;
+      }
+
+      return JSON.parse(raw);
+    } catch (error) {
+      logger.warn('Failed parsing JSON file; using fallback and preserving invalid file', {
+        filePath,
+        error: error.message
+      });
+
+      const invalidFilePath = `${filePath}.invalid-${Date.now()}`;
+      try {
+        fs.renameSync(filePath, invalidFilePath);
+        logger.warn('Moved invalid JSON file', { filePath, invalidFilePath });
+      } catch (renameError) {
+        logger.warn('Could not move invalid JSON file', { filePath, error: renameError.message });
+      }
+
+      return fallback;
+    }
+  }
+
+  _writeJsonFile(filePath, data) {
+    fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`);
   }
 
   /**
@@ -265,6 +348,7 @@ class DealFetcher {
 
     const processedDeals = [];
     const successfullyAffiliatedDeals = [];
+    const rejectedDeals = [];
 
     for (const deal of this.deals) {
       const subId = this.buildSubId(deal);
@@ -278,7 +362,9 @@ class DealFetcher {
 
         deal.affiliateLink = linkData.link || deal.productUrl;
 
-        if (!deal.affiliateLink.includes('cuelinks.com')) {
+        const isAffiliated = deal.affiliateLink.includes('cuelinks.com');
+
+        if (!isAffiliated) {
           logger.warn(`Cuelinks returned a non-cuelinks URL for ${deal.id}`, {
             affiliateLink: deal.affiliateLink
           });
@@ -297,8 +383,14 @@ class DealFetcher {
           generatedAt: new Date().toISOString()
         });
 
-        if (deal.affiliateLink.includes('cuelinks.com')) {
+        if (isAffiliated) {
           successfullyAffiliatedDeals.push(deal);
+          processedDeals.push(deal);
+        } else if (this.strictAffiliateOnly) {
+          rejectedDeals.push({ id: deal.id, reason: 'non_cuelinks_affiliate_link' });
+          logger.warn(`Skipping unaffiliated deal ${deal.id} due to STRICT_AFFILIATE_ONLY=true`);
+        } else {
+          processedDeals.push(deal);
         }
 
         // Download product image
@@ -310,10 +402,8 @@ class DealFetcher {
           deal.localImage = imageData;
         }
 
-        processedDeals.push(deal);
       } catch (error) {
         logger.warn(`Error processing deal ${deal.id}`, { error: error.message });
-        // Still include the deal, but without affiliate link
         deal.affiliateLink = deal.productUrl;
         this.saveAttributionRecord({
           dealId: deal.id,
@@ -323,13 +413,22 @@ class DealFetcher {
           generatedAt: new Date().toISOString(),
           error: error.message
         });
-        processedDeals.push(deal);
+        if (this.strictAffiliateOnly) {
+          rejectedDeals.push({ id: deal.id, reason: 'affiliate_generation_error', error: error.message });
+          logger.warn(`Skipping unaffiliated deal ${deal.id} due to STRICT_AFFILIATE_ONLY=true`);
+        } else {
+          processedDeals.push(deal);
+        }
       }
     }
 
     this.markDealsAsProcessed(successfullyAffiliatedDeals);
 
-    logger.info(`Processed ${processedDeals.length} deals`, { affiliated: successfullyAffiliatedDeals.length });
+    logger.info(`Processed ${processedDeals.length} deals`, {
+      affiliated: successfullyAffiliatedDeals.length,
+      rejected: rejectedDeals.length,
+      strictAffiliateOnly: this.strictAffiliateOnly
+    });
     return processedDeals;
   }
 }

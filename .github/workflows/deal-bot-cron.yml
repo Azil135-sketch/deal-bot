@@ -1,45 +1,54 @@
 name: Deal Bot Automation
 
-on:
-  schedule:
-    - cron: '0 3,9,15,21 * * *' # 4x daily (3am, 9am, 3pm, 9pm UTC = 8:30am, 2:30pm, 8:30pm, 2:30am IST)
-  workflow_dispatch: # manual trigger
+  on:
+    schedule:
+      - cron: '0 3,9,15,21 * * *'
+    workflow_dispatch:
 
-jobs:
-  run-deal-bot:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  permissions:
+    contents: write
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
+  jobs:
+    run-deal-bot:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: npm ci
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: '20'
+            cache: npm
 
-      - name: Run deal bot
-        env:
-          # Cuelinks (optional — bot works without it using direct tracking links)
-          CUELINKS_API_KEY: ${{ secrets.CUELINKS_API_KEY }}
-          CUELINKS_PUBLISHER_ID: ${{ secrets.CUELINKS_PUBLISHER_ID }}
-          CUELINKS_CHANNEL_ID: ${{ secrets.CUELINKS_CHANNEL_ID }}
-          # Telegram (required for broadcasting)
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_CHANNEL_USERNAME: ${{ secrets.TELEGRAM_CHANNEL_USERNAME }}
-          TELEGRAM_CHANNEL_INVITE_LINK: ${{ secrets.TELEGRAM_CHANNEL_INVITE_LINK }}
-          # Deal quality
-          DEALS_FILE: ./data/deals.json
-          STRICT_AFFILIATE_ONLY: 'false'
-          MIN_DISCOUNT_PERCENT: '20'
-          MIN_SAVINGS_AMOUNT: '200'
-          MIN_RATING: '3.5'
-          MAX_DEALS_PER_RUN: '10'
-          PROCESSED_DEAL_TTL_HOURS: '12'
-          LOG_LEVEL: info
-          BOT_MODE: oneshot
-        run: npm start
+        - name: Install dependencies
+          run: npm ci
+
+        - name: Run deal bot
+          env:
+            CUELINKS_API_KEY: ${{ secrets.CUELINKS_API_KEY }}
+            CUELINKS_PUBLISHER_ID: ${{ secrets.CUELINKS_PUBLISHER_ID }}
+            CUELINKS_CHANNEL_ID: ${{ secrets.CUELINKS_CHANNEL_ID }}
+            TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+            TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+            TELEGRAM_CHANNEL_USERNAME: ${{ secrets.TELEGRAM_CHANNEL_USERNAME }}
+            TELEGRAM_CHANNEL_INVITE_LINK: ${{ secrets.TELEGRAM_CHANNEL_INVITE_LINK }}
+            REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+            REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+            REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
+            REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+            DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+            GITHUB_TOKEN: ${{ github.token }}
+            GITHUB_REPO: ${{ github.repository }}
+            DEALS_FILE: ./data/deals.json
+            STRICT_AFFILIATE_ONLY: 'false'
+            FETCH_PRODUCT_IMAGES: 'true'
+            MIN_DISCOUNT_PERCENT: '20'
+            MIN_SAVINGS_AMOUNT: '200'
+            MIN_RATING: '3.5'
+            MAX_DEALS_PER_RUN: '10'
+            PROCESSED_DEAL_TTL_HOURS: '12'
+            LOG_LEVEL: info
+            BOT_MODE: oneshot
+          run: npm start
+  

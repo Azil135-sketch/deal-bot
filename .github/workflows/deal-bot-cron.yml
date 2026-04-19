@@ -1,50 +1,49 @@
 name: Deal Bot Automation
 
-  on:
-    schedule:
-      - cron: '0 3,9,15,21 * * *'
-    workflow_dispatch:
+on:
+  schedule:
+    - cron: '0 3,9,15,21 * * *'
+  workflow_dispatch:
 
-  permissions:
-    contents: write
+permissions:
+  contents: write
 
-  jobs:
-    run-deal-bot:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout
-          uses: actions/checkout@v4
+jobs:
+  run-deal-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-        - name: Setup Node.js
-          uses: actions/setup-node@v4
-          with:
-            node-version: '20'
-            cache: npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
 
-        - name: Install dependencies
-          run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-        - name: Run deal bot
-          env:
-            CUELINKS_API_KEY: ${{ secrets.CUELINKS_API_KEY }}
-            CUELINKS_PUBLISHER_ID: ${{ secrets.CUELINKS_PUBLISHER_ID }}
-            CUELINKS_CHANNEL_ID: ${{ secrets.CUELINKS_CHANNEL_ID }}
-            TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-            TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-            TELEGRAM_CHANNEL_USERNAME: ${{ secrets.TELEGRAM_CHANNEL_USERNAME }}
-            TELEGRAM_CHANNEL_INVITE_LINK: ${{ secrets.TELEGRAM_CHANNEL_INVITE_LINK }}
-            DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-            GITHUB_TOKEN: ${{ github.token }}
-            GITHUB_REPO: ${{ github.repository }}
-            DEALS_FILE: ./data/deals.json
-            STRICT_AFFILIATE_ONLY: 'false'
-            FETCH_PRODUCT_IMAGES: 'true'
-            MIN_DISCOUNT_PERCENT: '20'
-            MIN_SAVINGS_AMOUNT: '200'
-            MIN_RATING: '3.5'
-            MAX_DEALS_PER_RUN: '10'
-            PROCESSED_DEAL_TTL_HOURS: '12'
-            LOG_LEVEL: info
-            BOT_MODE: oneshot
-          run: npm start
-  
+      - name: Run deal bot
+        env:
+          CUELINKS_API_KEY: ${{ secrets.CUELINKS_API_KEY }}
+          CUELINKS_PUBLISHER_ID: ${{ secrets.CUELINKS_PUBLISHER_ID }}
+          CUELINKS_CHANNEL_ID: ${{ secrets.CUELINKS_CHANNEL_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHANNEL_USERNAME: ${{ secrets.TELEGRAM_CHANNEL_USERNAME }}
+          TELEGRAM_CHANNEL_INVITE_LINK: ${{ secrets.TELEGRAM_CHANNEL_INVITE_LINK }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPO: ${{ github.repository }}
+          DEALS_FILE: ./data/deals.json
+          STRICT_AFFILIATE_ONLY: 'false'
+          FETCH_PRODUCT_IMAGES: 'true'
+          MIN_DISCOUNT_PERCENT: '20'
+          MIN_SAVINGS_AMOUNT: '200'
+          MIN_RATING: '3.5'
+          MAX_DEALS_PER_RUN: '10'
+          PROCESSED_DEAL_TTL_HOURS: '12'
+          LOG_LEVEL: info
+          BOT_MODE: oneshot
+        run: npm start

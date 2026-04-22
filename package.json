@@ -1,0 +1,42 @@
+{
+  "name": "deal-bot",
+  "version": "4.0.0",
+  "description": "Deal Bot India v4 - Real product URLs, multi-affiliate networks, autonomous distribution",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "fetch": "node src/fetchDeals.js",
+    "broadcast": "node src/broadcaster.js",
+    "scrape": "node -e \"require('dotenv').config(); const s = new (require('./src/dealScraper'))(); s.scrapeAll().then(d => { console.log(JSON.stringify(d, null, 2)); process.exit(0); });\"",
+    "growth": "node -e \"require('dotenv').config(); const g = new (require('./src/growthEngine'))(); g.setupBotCommands().then(() => console.log('Done'));\"",
+    "campaigns": "node -e \"require('dotenv').config(); const r = new (require('./src/affiliateRouter'))(); r.getOpenCampaigns().then(c => console.log(JSON.stringify(c.map(x => x.name || x.advertiser_name), null, 2)));\"",
+    "validate": "node src/validateDeals.js",
+    "validate:flag-only": "node src/validateDeals.js --flag-only",
+    "test": "node -e \"console.log('Run: npm run scrape, npm run start, or npm run validate')\""
+  },
+  "keywords": [
+    "deals",
+    "ecommerce",
+    "affiliate",
+    "cuelinks",
+    "earnkaro",
+    "telegram",
+    "automation",
+    "india",
+    "distribution"
+  ],
+  "author": "Azil135-sketch",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^16.3.1",
+    "form-data": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "twitter-api-v2": "^1.16.0"
+  }
+}

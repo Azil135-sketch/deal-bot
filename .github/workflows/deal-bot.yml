@@ -1,0 +1,93 @@
+name: Deal Bot v4 — Daily Run
+
+on:
+  schedule:
+    # 6x daily: 8am, 11am, 2pm, 5pm, 7pm, 10pm IST
+    - cron: '30 2 * * *'
+    - cron: '30 5 * * *'
+    - cron: '30 8 * * *'
+    - cron: '30 11 * * *'
+    - cron: '30 13 * * *'
+    - cron: '30 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-deal-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Deal Bot v4 pipeline
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHANNEL_USERNAME: ${{ secrets.TELEGRAM_CHANNEL_USERNAME }}
+          TELEGRAM_CHANNEL_INVITE_LINK: ${{ secrets.TELEGRAM_CHANNEL_INVITE_LINK }}
+
+          # Cuelinks (auto-approved stores: Myntra, Nykaa, Ajio, etc.)
+          CUELINKS_API_KEY: ${{ secrets.CUELINKS_API_KEY }}
+          CUELINKS_PUBLISHER_ID: ${{ secrets.CUELINKS_PUBLISHER_ID }}
+          CUELINKS_CHANNEL_ID: ${{ secrets.CUELINKS_CHANNEL_ID }}
+
+          # EarnKaro (no approval needed)
+          EARNKARO_PUBLIC_TOKEN: ${{ secrets.EARNKARO_PUBLIC_TOKEN }}
+
+          # Reddit auto-posting
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
+          REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+
+          # Discord webhooks
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+          # Twitter/X (optional)
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_SECRET: ${{ secrets.TWITTER_ACCESS_SECRET }}
+
+          # GitHub Pages deal site
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+
+          # Direct affiliate programs
+          AMAZON_ASSOCIATES_TAG: ${{ secrets.AMAZON_ASSOCIATES_TAG }}
+          FLIPKART_AFFILIATE_ID: ${{ secrets.FLIPKART_AFFILIATE_ID }}
+
+          # Telegram community cross-posting
+          TARGET_COMMUNITIES: ${{ secrets.TARGET_COMMUNITIES }}
+
+          # Bot config
+          DEALS_FILE: ./data/deals.json
+          MIN_DISCOUNT_PERCENT: 15
+          MIN_SAVINGS_AMOUNT: 100
+          MAX_DEALS_PER_RUN: 8
+          FETCH_PRODUCT_IMAGES: 'true'
+          CHECK_STOCK: 'true'
+          MIN_QUALITY_SCORE: '22'
+          PROCESSED_DEAL_TTL_HOURS: 20
+          LOG_LEVEL: info
+
+        run: node src/index.js
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deal-bot-logs-${{ github.run_id }}
+          path: deals/
+          retention-days: 7
+          if-no-files-found: ignore

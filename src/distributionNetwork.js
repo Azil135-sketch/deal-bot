@@ -1,57 +1,33 @@
 /**
- * Autonomous Distribution Network v4
- * 
- * A multi-platform distribution system that automatically shares deals
- * across the entire internet — not just your own channels.
- * 
- * Features:
- * - Cross-posting to 50+ Telegram deal groups
- * - Reddit auto-poster to multiple subreddits
- * - Twitter bot with trending hashtags
- * - Discord webhook multi-server posting
- * - WhatsApp sharing links generation
- * - Pinterest-style image sharing
- * - SEO deal site with auto-indexing
- * - Cross-promotion with other deal channels
- * - Viral referral tracking
+ * Autonomous Distribution Network v4 — Realistic Edition
+ *
+ * Posts deals to channels that actually work without approval barriers:
+ * - Telegram (primary channel + communities)
+ * - Discord (webhooks — no approval needed)
+ * - GitHub Pages (SEO site — free)
+ * - WhatsApp sharing links (generated, user shares)
+ * - Reddit (automated if credentials work, manual fallback always available)
+ * - Twitter/X (if API keys available)
+ *
+ * Reddit Note:
+ *   reddit.com/prefs/apps can fail for some accounts.
+ *   If automated posting doesn't work, use the manual post generator:
+ *   node src/manualReddit.js
  */
 
 const axios = require('axios');
 const logger = require('./logger');
 
-// ─── TELEGRAM COMMUNITIES ────────────────────────────────────────────────────
-// Active Indian deal communities that accept deal posts
+// Active Indian deal communities
 const TELEGRAM_COMMUNITIES = [
-  { name: 'Desi Deals Central', type: 'group', invite: 'https://t.me/+AAAAA0000000000' },
-  { name: 'Online Shopping India', type: 'group', handle: '@onlineshoppingindia' },
-  { name: 'Tech Deals India', type: 'channel', handle: '@techdeals_india' },
-  { name: 'Deals & Coupons India', type: 'group', handle: '@dealsandcouponsindia' },
-  { name: 'Sale & Offers India', type: 'channel', handle: '@saleoffersindia' },
-  { name: 'Budget Shopping India', type: 'group', handle: '@budgetshopping_in' },
-  { name: 'Myntra Deals & Offers', type: 'channel', handle: '@myntradeals' },
-  { name: 'Beauty & Skincare India', type: 'channel', handle: '@beautydeals_india' },
-  { name: 'Fashion Deals India', type: 'group', handle: '@fashiondealsin' },
-  { name: 'Electronics Deals IN', type: 'channel', handle: '@electronicsdealsin' },
-  { name: 'Home & Kitchen Deals', type: 'group', handle: '@homedecordeals' },
-  { name: 'Indian Deals Hub', type: 'channel', handle: '@indiandealshub' },
-];
-
-// ─── REDDIT TARGETS ──────────────────────────────────────────────────────────
-const REDDIT_SUBREDDITS = [
-  { name: 'DesiDeal', maxPerDay: 2 },
-  { name: 'IndiaShopping', maxPerDay: 1 },
-  { name: 'deals', maxPerDay: 1 },
-  { name: 'frugalmalefashionINDIA', maxPerDay: 1 },
-  { name: 'IndianBeautyDeals', maxPerDay: 1 },
-  { name: 'india', maxPerDay: 1, commentOnly: true },
-];
-
-// ─── TWITTER HASHTAGS ────────────────────────────────────────────────────────
-const TRENDING_HASHTAGS = [
-  '#IndiaDeals', '#OnlineShopping', '#DealsIndia', '#Discount',
-  '#MyntraSale', '#NykaaDeals', '#AjioSale', '#ShoppingDeals',
-  '#TodayDeals', '#BestPrice', '#SaveMoney', '#IndianFashion',
-  '#TechDeals', '#BeautyDeals', '#FlashSale'
+  { name: 'Desi Deals Central', handle: '@desidealscentral' },
+  { name: 'Online Shopping India', handle: '@onlineshoppingindia' },
+  { name: 'Tech Deals India', handle: '@techdeals_india' },
+  { name: 'Deals & Coupons India', handle: '@dealsandcouponsindia' },
+  { name: 'Sale & Offers India', handle: '@saleoffersindia' },
+  { name: 'Budget Shopping India', handle: '@budgetshopping_in' },
+  { name: 'Myntra Deals', handle: '@myntradeals' },
+  { name: 'Beauty Deals India', handle: '@beautydeals_india' },
 ];
 
 class DistributionNetwork {
@@ -61,7 +37,7 @@ class DistributionNetwork {
     this.channelUsername = process.env.TELEGRAM_CHANNEL_USERNAME || '';
     this.channelInviteLink = process.env.TELEGRAM_CHANNEL_INVITE_LINK || '';
 
-    // Reddit credentials
+    // Reddit
     this.redditClientId = process.env.REDDIT_CLIENT_ID;
     this.redditClientSecret = process.env.REDDIT_CLIENT_SECRET;
     this.redditUsername = process.env.REDDIT_USERNAME;
@@ -69,36 +45,30 @@ class DistributionNetwork {
     this.redditToken = null;
     this.redditTokenExpiry = 0;
 
-    // Twitter credentials
+    // Twitter
     this.twitterApiKey = process.env.TWITTER_API_KEY;
     this.twitterApiSecret = process.env.TWITTER_API_SECRET;
     this.twitterAccessToken = process.env.TWITTER_ACCESS_TOKEN;
     this.twitterAccessSecret = process.env.TWITTER_ACCESS_SECRET;
 
-    // Discord webhooks
+    // Discord
     const rawDiscord = process.env.DISCORD_WEBHOOK_URL || '';
     this.discordWebhooks = rawDiscord.split(',').map(u => u.trim()).filter(Boolean);
 
-    // Distribution stats tracking
     this.stats = {
       telegram: { posted: 0, failed: 0 },
       reddit: { posted: 0, failed: 0 },
       twitter: { posted: 0, failed: 0 },
-      discord: { posted: 0, failed: 0 },
-      communities: { posted: 0, failed: 0 }
+      discord: { posted: 0, failed: 0 }
     };
   }
 
-  /**
-   * Distribute deals across ALL platforms.
-   */
   async distributeAll(deals) {
     if (!deals || deals.length === 0) return this.stats;
 
-    logger.info(`Distributing ${deals.length} deals across all platforms...`);
+    logger.info(`Distributing ${deals.length} deals`);
 
-    // Run all distribution channels in parallel
-    const results = await Promise.allSettled([
+    await Promise.allSettled([
       this.distributeToCommunities(deals),
       this.postToReddit(deals),
       this.postToTwitter(deals),
@@ -110,43 +80,34 @@ class DistributionNetwork {
   }
 
   // ─── TELEGRAM COMMUNITIES ──────────────────────────────────────────────────
-  /**
-   * Post deals to Telegram communities using the bot.
-   * Uses a rotation strategy to avoid spam detection.
-   */
   async distributeToCommunities(deals) {
-    if (!this.apiBase) {
-      logger.debug('Telegram bot not configured, skipping community distribution');
-      return;
-    }
+    if (!this.apiBase) return;
 
     const targetCommunities = process.env.TARGET_COMMUNITIES
       ? process.env.TARGET_COMMUNITIES.split(',').map(c => c.trim())
-      : TELEGRAM_COMMUNITIES.slice(0, 5).map(c => c.handle).filter(Boolean);
+      : [];
 
     if (targetCommunities.length === 0) {
-      logger.debug('No target communities configured');
+      logger.debug('No TARGET_COMMUNITIES set — add group handles to cross-post automatically');
       return;
     }
 
-    const topDeals = deals.slice(0, 3); // Post top 3 deals
-
+    const topDeals = deals.slice(0, 3);
     for (const community of targetCommunities) {
       for (const deal of topDeals) {
         try {
-          const message = this._formatCommunityMessage(deal);
+          const msg = this._formatCommunityMessage(deal);
           await axios.post(`${this.apiBase}/sendMessage`, {
             chat_id: community,
-            text: message,
+            text: msg,
             parse_mode: 'HTML',
             disable_web_page_preview: false
           }, { timeout: 10000 });
-
-          this.stats.communities.posted++;
-          await this._delay(3000); // Rate limit between posts
+          this.stats.telegram.posted++;
+          await this._delay(3000);
         } catch (error) {
-          this.stats.communities.failed++;
-          logger.debug(`Failed to post to ${community}: ${error.message}`);
+          this.stats.telegram.failed++;
+          logger.debug(`Community post failed: ${community} — ${error.message}`);
         }
       }
     }
@@ -160,62 +121,53 @@ class DistributionNetwork {
     let msg = `🔥 <b>${deal.title}</b>\n\n`;
     msg += `💰 <b>₹${deal.discountedPrice}</b> <s>₹${deal.originalPrice}</s> (${deal.discount}% OFF)`;
     if (savings > 100) msg += ` — Save ₹${savings}`;
-    msg += `\n`;
-    msg += `🛍️ ${store}\n\n`;
+    msg += `\n🛍️ ${store}\n\n`;
     msg += `<a href="${link}">🔗 Grab this deal →</a>\n\n`;
-
     if (this.channelInviteLink) {
       msg += `<i>More deals: ${this.channelInviteLink}</i>`;
     }
-
     return msg;
   }
 
-  // ─── REDDIT DISTRIBUTION ───────────────────────────────────────────────────
+  // ─── REDDIT ────────────────────────────────────────────────────────────────
   async postToReddit(deals) {
     if (!this.redditClientId || !this.redditUsername) {
-      logger.debug('Reddit not configured, skipping');
+      logger.debug('Reddit not configured — skipping automated posting');
       return;
     }
 
     try {
       await this._authenticateReddit();
     } catch (error) {
-      logger.warn('Reddit auth failed', { error: error.message });
+      logger.warn('Reddit auth failed — automated posting disabled. Use: node src/manualReddit.js', { error: error.message });
       return;
     }
 
     const topDeal = deals.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))[0];
     if (!topDeal) return;
 
-    for (const sub of REDDIT_SUBREDDITS.slice(0, 3)) {
+    const subs = ['DesiDeal', 'IndiaShopping'];
+    for (const sub of subs) {
       try {
         const title = this._buildRedditTitle(topDeal);
         const url = topDeal.affiliateLink || topDeal.productUrl;
 
         await axios.post('https://oauth.reddit.com/api/submit',
-          new URLSearchParams({
-            sr: sub.name,
-            kind: 'link',
-            title: title.slice(0, 300),
-            url: url,
-            resubmit: 'true'
-          }), {
+          new URLSearchParams({ sr: sub, kind: 'link', title: title.slice(0, 300), url, resubmit: 'true' }), {
             headers: {
               'Authorization': `Bearer ${this.redditToken}`,
-              'User-Agent': 'DealBot:v4.0 (by /u/dealbot_india)',
+              'User-Agent': 'DealBot:v4.0',
               'Content-Type': 'application/x-www-form-urlencoded'
             },
             timeout: 15000
           }
         );
-
         this.stats.reddit.posted++;
-        logger.info(`Posted to r/${sub.name}: ${title.slice(0, 60)}`);
+        logger.info(`Posted to r/${sub}`);
         await this._delay(5000);
       } catch (error) {
         this.stats.reddit.failed++;
-        logger.debug(`Reddit post failed for r/${sub.name}: ${error.message}`);
+        logger.debug(`Reddit post failed: ${error.message}`);
       }
     }
   }
@@ -233,10 +185,7 @@ class DistributionNetwork {
       `grant_type=password&username=${encodeURIComponent(this.redditUsername)}&password=${encodeURIComponent(this.redditPassword)}`,
       {
         auth: { username: this.redditClientId, password: this.redditClientSecret },
-        headers: {
-          'User-Agent': 'DealBot:v4.0 (by /u/dealbot_india)',
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        headers: { 'User-Agent': 'DealBot:v4.0', 'Content-Type': 'application/x-www-form-urlencoded' }
       }
     );
 
@@ -244,22 +193,28 @@ class DistributionNetwork {
     this.redditTokenExpiry = Date.now() + (resp.data.expires_in - 60) * 1000;
   }
 
-  // ─── TWITTER DISTRIBUTION ──────────────────────────────────────────────────
+  // ─── TWITTER ───────────────────────────────────────────────────────────────
   async postToTwitter(deals) {
     if (!this.twitterApiKey || !this.twitterAccessToken) {
-      logger.debug('Twitter not configured, skipping');
+      logger.debug('Twitter not configured');
       return;
     }
 
     try {
-      // Using Twitter API v2
       const topDeal = deals.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))[0];
       if (!topDeal) return;
 
-      const tweet = this._buildTweet(topDeal);
+      let tweet = `🔥 ${topDeal.title.slice(0, 80)}\n`;
+      tweet += `💰 ₹${topDeal.discountedPrice} (${topDeal.discount}% OFF)\n`;
+      tweet += `${topDeal.affiliateLink || topDeal.productUrl}\n`;
+      tweet += '#IndiaDeals #OnlineShopping';
 
-      // Note: Full Twitter implementation requires twitter-api-v2 library
-      // This is the API structure - install with: npm install twitter-api-v2
+      if (tweet.length > 280) {
+        tweet = `🔥 ${topDeal.title.slice(0, 60)} | ${topDeal.discount}% OFF | ₹${topDeal.discountedPrice}\n`;
+        tweet += `${topDeal.affiliateLink || topDeal.productUrl}`;
+      }
+
+      // Requires: npm install twitter-api-v2
       const { TwitterApi } = require('twitter-api-v2');
       const client = new TwitterApi({
         appKey: this.twitterApiKey,
@@ -270,11 +225,10 @@ class DistributionNetwork {
 
       await client.v2.tweet(tweet);
       this.stats.twitter.posted++;
-      logger.info('Tweet posted successfully');
+      logger.info('Tweet posted');
     } catch (error) {
-      // If twitter-api-v2 not installed, log but don't fail
       if (error.code === 'MODULE_NOT_FOUND') {
-        logger.debug('Twitter posting requires "twitter-api-v2" package. Install with: npm install twitter-api-v2');
+        logger.debug('Install "twitter-api-v2" for Twitter posting: npm install twitter-api-v2');
       } else {
         this.stats.twitter.failed++;
         logger.debug(`Twitter post failed: ${error.message}`);
@@ -282,44 +236,39 @@ class DistributionNetwork {
     }
   }
 
-  _buildTweet(deal) {
-    const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
-    const store = (deal.source || '').charAt(0).toUpperCase() + (deal.source || '').slice(1);
-    const hashtags = TRENDING_HASHTAGS.slice(0, 3).join(' ');
-
-    let tweet = `🔥 ${deal.title.slice(0, 80)}\n`;
-    tweet += `💰 ₹${deal.discountedPrice} (Save ₹${savings})\n`;
-    tweet += `🛍️ ${store}\n`;
-    tweet += `${deal.affiliateLink || deal.productUrl}\n`;
-    tweet += `${hashtags}`;
-
-    // Twitter has 280 char limit
-    if (tweet.length > 280) {
-      tweet = `🔥 ${deal.title.slice(0, 60)} | ${deal.discount}% OFF | ₹${deal.discountedPrice}\n`;
-      tweet += `${deal.affiliateLink || deal.productUrl}\n`;
-      tweet += `${hashtags}`;
-    }
-
-    return tweet;
-  }
-
-  // ─── DISCORD DISTRIBUTION ──────────────────────────────────────────────────
+  // ─── DISCORD ──────────────────────────────────────────────────────────────
   async postToDiscord(deals) {
     if (this.discordWebhooks.length === 0) {
-      logger.debug('Discord not configured, skipping');
+      logger.debug('Discord not configured');
       return;
     }
 
     const topDeals = deals.slice(0, 3);
-
     for (const webhook of this.discordWebhooks) {
       for (const deal of topDeals) {
         try {
-          const embed = this._buildDiscordEmbed(deal);
+          const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
+          const link = deal.affiliateLink || deal.productUrl;
+          const store = (deal.source || 'India').charAt(0).toUpperCase() + (deal.source || '').slice(1);
+
           await axios.post(webhook, {
             username: 'Deal Bot India',
-            avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f525.png',
-            embeds: [embed]
+            embeds: [{
+              title: deal.title.slice(0, 256),
+              url: link,
+              color: deal.discount >= 60 ? 0xFF1744 : deal.discount >= 40 ? 0xFF9800 : 0x4CAF50,
+              fields: [
+                { name: '💰 Price', value: `₹${deal.discountedPrice}`, inline: true },
+                { name: '💸 Original', value: `₹${deal.originalPrice}`, inline: true },
+                { name: '📉 Discount', value: `${deal.discount}% OFF`, inline: true },
+                { name: '💵 You Save', value: `₹${savings}`, inline: true },
+                { name: '🛍️ Store', value: store, inline: true },
+                { name: '🔗 Link', value: `[Buy Now](${link})`, inline: true }
+              ],
+              footer: { text: this.channelInviteLink || 'Deal Bot India v4' },
+              timestamp: new Date().toISOString(),
+              thumbnail: deal.imageUrl ? { url: deal.imageUrl } : undefined
+            }]
           }, { timeout: 10000 });
 
           this.stats.discord.posted++;
@@ -332,33 +281,6 @@ class DistributionNetwork {
     }
   }
 
-  _buildDiscordEmbed(deal) {
-    const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
-    const link = deal.affiliateLink || deal.productUrl;
-    const store = (deal.source || 'India').charAt(0).toUpperCase() + (deal.source || '').slice(1);
-    const color = deal.discount >= 60 ? 0xFF1744 : deal.discount >= 40 ? 0xFF9800 : 0x4CAF50;
-
-    return {
-      title: deal.title.slice(0, 256),
-      url: link,
-      color,
-      fields: [
-        { name: '💰 Price', value: `₹${deal.discountedPrice}`, inline: true },
-        { name: '💸 Original', value: `₹${deal.originalPrice}`, inline: true },
-        { name: '📉 Discount', value: `${deal.discount}% OFF`, inline: true },
-        { name: '💵 You Save', value: `₹${savings}`, inline: true },
-        { name: '🛍️ Store', value: store, inline: true },
-        { name: '🔗 Link', value: `[Buy Now](${link})`, inline: true }
-      ],
-      footer: {
-        text: this.channelInviteLink ? `More deals: ${this.channelInviteLink}` : 'Deal Bot India v4'
-      },
-      timestamp: new Date().toISOString(),
-      thumbnail: deal.imageUrl ? { url: deal.imageUrl } : undefined
-    };
-  }
-
-  // ─── WHATSAPP SHARING LINKS ────────────────────────────────────────────────
   generateWhatsAppShareLink(deal) {
     const link = deal.affiliateLink || deal.productUrl;
     const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
@@ -372,13 +294,9 @@ class DistributionNetwork {
     return `https://wa.me/?text=${text}`;
   }
 
-  /**
-   * Generate a shareable link for any platform.
-   */
   generateShareLinks(deal) {
     const link = deal.affiliateLink || deal.productUrl;
     const title = encodeURIComponent(`${deal.title} — ${deal.discount}% OFF`);
-
     return {
       whatsapp: this.generateWhatsAppShareLink(deal),
       twitter: `https://twitter.com/intent/tweet?text=${title}&url=${encodeURIComponent(link)}`,

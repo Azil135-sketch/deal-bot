@@ -41,10 +41,7 @@ jobs:
           CUELINKS_PUBLISHER_ID: ${{ secrets.CUELINKS_PUBLISHER_ID }}
           CUELINKS_CHANNEL_ID: ${{ secrets.CUELINKS_CHANNEL_ID }}
 
-          # EarnKaro (no approval needed)
-          EARNKARO_PUBLIC_TOKEN: ${{ secrets.EARNKARO_PUBLIC_TOKEN }}
-
-          # Reddit auto-posting
+          # Reddit auto-posting (optional — if prefs/apps works for you)
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}

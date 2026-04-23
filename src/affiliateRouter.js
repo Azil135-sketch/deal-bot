@@ -1,17 +1,21 @@
 /**
- * Affiliate Router v4 - Multi-Network Support
+ * Affiliate Router v4 - Realistic Multi-Network Support
+ *
  * Routes product URLs through the best available affiliate network.
  *
  * Priority:
- *   1. Cuelinks API (with auto-approved campaigns)
- *   2. EarnKaro API (public links, no approval needed)
- *   3. Admitad / Other networks
- *   4. Direct store affiliate programs
- *   5. UTM tracking fallback (always works)
+ *   1. Cuelinks API (auto-approved campaigns only — Myntra, Nykaa, Ajio, etc.)
+ *   2. Direct store affiliate programs (Amazon Associates, Flipkart Affiliate)
+ *   3. UTM tracking fallback (always works, click tracking only)
  *
- * KEY FEATURE: Filters for auto-approved campaigns only.
- * Amazon and Flipkart are EXCLUDED from Cuelinks calls
- * unless explicitly approved.
+ * WHAT WORKS NOW:
+ *   - Cuelinks: Auto-approved stores get real affiliate links instantly
+ *   - Amazon/Flipkart: Direct Associates/Affiliate IDs if you have accounts
+ *   - UTM fallback: Works for all stores, tracks clicks, no commission
+ *
+ * WHAT DOES NOT EXIST:
+ *   - EarnKaro has NO public API for automated link generation.
+ *     You create links manually via their dashboard/extension.
  */
 
 const axios = require('axios');
@@ -53,16 +57,11 @@ function isManualApprovalStore(hostname) {
 class AffiliateRouter {
   constructor() {
     this.cuelinks = new CuelinksAPI();
-    this.earnkaroToken = process.env.EARNKARO_PUBLIC_TOKEN;
-    this._campaignCache = null;
-    this._campaignCacheTime = 0;
-    this.CAMPAIGN_CACHE_TTL = 3600 * 1000;
     this._resolvedUrlCache = new Map();
   }
 
   /**
    * Convert a product URL to an affiliate link.
-   * Uses the best available network based on store and approval status.
    */
   async getAffiliateLink(url, subId = 'deal-bot', needsResolution = false) {
     if (!url) return { link: url, method: 'passthrough', resolvedUrl: url };
@@ -88,7 +87,8 @@ class AffiliateRouter {
     }
 
     // Step 3: Route to best affiliate network
-    // 3a: Try Cuelinks for auto-approved stores
+
+    // 3a: Cuelinks for auto-approved stores (instant commission)
     if (isAutoApprovedStore(hostname)) {
       try {
         const result = await this.cuelinks.generateLink(normalized, subId);
@@ -96,23 +96,11 @@ class AffiliateRouter {
           return { link: result, method: 'cuelinks', resolvedUrl: normalized };
         }
       } catch (err) {
-        logger.debug('Cuelinks failed, trying next network', { error: err.message });
+        logger.debug('Cuelinks failed, trying fallback', { error: err.message });
       }
     }
 
-    // 3b: Try EarnKaro for all stores (public links, no approval)
-    if (this.earnkaroToken) {
-      try {
-        const earnkaroLink = await this._generateEarnKaroLink(normalized, subId);
-        if (earnkaroLink) {
-          return { link: earnkaroLink, method: 'earnkaro', resolvedUrl: normalized };
-        }
-      } catch (err) {
-        logger.debug('EarnKaro failed', { error: err.message });
-      }
-    }
-
-    // 3c: For Amazon/Flipkart without approval, use direct affiliate params
+    // 3b: Direct affiliate programs for Amazon/Flipkart
     if (isManualApprovalStore(hostname)) {
       const directLink = this._buildDirectAffiliateLink(normalized, subId, hostname);
       if (directLink !== normalized) {
@@ -130,32 +118,8 @@ class AffiliateRouter {
   }
 
   /**
-   * Generate EarnKaro affiliate link (no approval needed, public API).
-   */
-  async _generateEarnKaroLink(productUrl, subId) {
-    try {
-      const resp = await axios.post('https://pub-api.earnkaro.com/api/deeplink', {
-        url: productUrl,
-        token: this.earnkaroToken,
-        subId: subId
-      }, {
-        timeout: 8000,
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (resp.data?.shortUrl || resp.data?.deeplink) {
-        return resp.data.shortUrl || resp.data.deeplink;
-      }
-      if (resp.data?.url) return resp.data.url;
-      return null;
-    } catch (error) {
-      logger.debug('EarnKaro API error', { error: error.message });
-      return null;
-    }
-  }
-
-  /**
    * Build direct affiliate links for stores with public programs.
+   * Requires you to have an account with the program.
    */
   _buildDirectAffiliateLink(url, subId, hostname) {
     try {
@@ -188,27 +152,19 @@ class AffiliateRouter {
 
   /**
    * Build UTM fallback links (always works, tracks clicks).
+   * No commission, but you see what's converting.
    */
   _buildUTMFallback(url, subId) {
     try {
       const parsed = new URL(url);
       const hostname = parsed.hostname.toLowerCase();
 
-      // Add UTM params for tracking
       parsed.searchParams.set('utm_source', 'dealbot');
       parsed.searchParams.set('utm_medium', 'affiliate');
       parsed.searchParams.set('utm_campaign', subId);
 
-      // Store-specific tracking
       if (hostname.includes('myntra.com')) {
         parsed.searchParams.set('ref', `db_${subId}`);
-      }
-      if (hostname.includes('ajio.com')) {
-        parsed.searchParams.set('utm_source', 'dealbot');
-        parsed.searchParams.set('utm_medium', 'telegram');
-      }
-      if (hostname.includes('nykaa.com')) {
-        parsed.searchParams.set('utm_source', 'dealbot');
       }
 
       return parsed.toString();

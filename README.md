@@ -1,6 +1,6 @@
 # Deal Bot India v4.0
 
-**Real product links. Multi-affiliate networks. Autonomous distribution.**
+**Real product links. Auto-approved affiliates. Autonomous distribution.**
 
 Automated deal aggregation and broadcasting for Indian e-commerce. No more search-page redirects — users land on actual product pages.
 
@@ -11,61 +11,84 @@ Automated deal aggregation and broadcasting for Indian e-commerce. No more searc
 | Issue | v3 | v4 |
 |-------|-----|-----|
 | Product URLs | Search query URLs (`/s?k=...`) | **Real product URLs** via redirect resolution |
-| Affiliate approval | Only Cuelinks (Amazon/Flipkart blocked) | **Cuelinks + EarnKaro + direct fallback** |
-| Distribution | Just your Telegram channel | **Telegram + Reddit + Twitter + Discord + communities + SEO site** |
-| Growth | Basic viral footer | **Milestone tracking, referral loops, cross-posting** |
-| Twitter/Email | Stubs (not implemented) | **Twitter fully implemented** (install `twitter-api-v2`) |
-| URL validation | Basic HEAD check | **Full redirect chain following + product page validation** |
+| Cuelinks approval | All stores attempted, Amazon/Flipkart fail silently | **Auto-approved stores only** — Myntra, Nykaa, Ajio, etc. work instantly |
+| Affiliate fallback | UTM only (no commission) | **Direct affiliate IDs** (Amazon Associates, Flipkart Affiliate) |
+| Distribution | Just your Telegram channel | **Telegram + Reddit + Discord + WhatsApp + SEO site** |
+| Twitter | Stub (not implemented) | **Implemented** (requires `twitter-api-v2` install) |
+| Reddit | Automated only | **Automated OR manual** (`node src/manualReddit.js` for copy-paste) |
+| URL validation | Basic HEAD check | **Full redirect chain + product page validation** |
 
 ---
 
 ## How It Works
 
 ```
-1. SCRAPE → DealsMagnet RSS + Desidime + GrabOn
-2. RESOLVE → Follow redirects to find REAL product URLs (not search pages)
-3. AFFILIATE → Cuelinks (auto-approved) → EarnKaro → UTM fallback
-4. QUALITY → AI scoring + stock check + duplicate filter
-5. BROADCAST → Telegram + Reddit + Twitter + Discord + communities + SEO site
-6. GROW → Milestone posts + viral footers + cross-promotion
+1. SCRAPE    → DealsMagnet RSS + Desidime + GrabOn
+2. RESOLVE   → Follow redirects to find REAL product URLs
+3. AFFILIATE → Cuelinks (auto-approved stores) → Direct IDs → UTM fallback
+4. QUALITY   → AI scoring + stock check + duplicate filter
+5. BROADCAST → Telegram + Discord + Reddit + WhatsApp links + SEO site
+6. GROW      → Milestone posts + viral footers + cross-promotion
 ```
 
 ---
 
 ## Quick Setup
 
-### 1. Required Secrets (GitHub Actions)
+### 1. Required: Telegram
 
 | Secret | How to Get |
 |--------|-----------|
-| `TELEGRAM_BOT_TOKEN` | Message [@BotFather](https://t.me/BotFather) on Telegram |
-| `TELEGRAM_CHAT_ID` | Create a channel, add your bot, get ID from [@userinfobot](https://t.me/userinfobot) |
+| `TELEGRAM_BOT_TOKEN` | Message [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_CHAT_ID` | Create channel, add bot, get ID from [@userinfobot](https://t.me/userinfobot) |
 
-### 2. Affiliate Networks (at least one)
+Add these to GitHub Secrets: Repo → Settings → Secrets → Actions.
 
-**Option A: Cuelinks** (best commissions, instant approval for most stores)
-- Sign up: [cuelinks.com](https://www.cuelinks.com)
-- Get API key from dashboard
-- Stores with **instant approval**: Myntra, Nykaa, Ajio, TataCliq, Meesho, Bewakoof, Healthkart, Lenskart, and 20+ more
-- Amazon/Flipkart require approval (bot falls back to direct params)
+### 2. Affiliate: Cuelinks (Recommended)
 
-**Option B: EarnKaro** (no approval needed at all)
-- Sign up: [earnkaro.com](https://earnkaro.com)
-- Add `EARNKARO_PUBLIC_TOKEN` to secrets
-- Works for ALL stores including Amazon/Flipkart
+**This actually works.** Auto-approved stores get instant commission:
 
-**Option C: Direct Affiliate** (no third party)
-- Amazon Associates: Set `AMAZON_ASSOCIATES_TAG`
-- Flipkart Affiliate: Set `FLIPKART_AFFILIATE_ID`
+1. Sign up: [cuelinks.com](https://www.cuelinks.com)
+2. Get API key from dashboard
+3. Add `CUELINKS_API_KEY`, `CUELINKS_PUBLISHER_ID`, `CUELINKS_CHANNEL_ID` to secrets
 
-### 3. Distribution (optional but recommended)
+**Stores with instant approval (no wait, no member count requirement):**
+Myntra, Nykaa, Ajio, TataCliq, Meesho, Bewakoof, Croma, Healthkart, Lenskart, Netmeds, PharmEasy, 1mg, Snapdeal, FirstCry, Pepperfry, and 20+ more.
 
-| Platform | Secret | How to Get |
-|----------|--------|-----------|
-| Reddit | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`, `REDDIT_PASSWORD` | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) → Create App → type: **script** |
-| Discord | `DISCORD_WEBHOOK_URL` | Server Settings → Integrations → Webhooks |
-| Twitter/X | `TWITTER_API_KEY`, `TWITTER_API_SECRET`, `TWITTER_ACCESS_TOKEN`, `TWITTER_ACCESS_SECRET` | [developer.twitter.com](https://developer.twitter.com) |
-| Telegram Communities | `TARGET_COMMUNITIES` | Comma-separated list like `@group1,@group2` |
+**Stores requiring manual approval:** Amazon, Flipkart — bot falls back to UTM/direct for these.
+
+### 3. Direct Affiliate (Optional, if you have accounts)
+
+| Program | Secret | Signup |
+|---------|--------|--------|
+| Amazon Associates | `AMAZON_ASSOCIATES_TAG` | [affiliate-program.amazon.in](https://affiliate-program.amazon.in) |
+| Flipkart Affiliate | `FLIPKART_AFFILIATE_ID` | [affiliate.flipkart.com](https://affiliate.flipkart.com) |
+
+### 4. Distribution (Optional but recommended)
+
+| Platform | Secret | How to Get | Notes |
+|----------|--------|-----------|-------|
+| **Discord** | `DISCORD_WEBHOOK_URL` | Server Settings → Integrations → Webhooks | No approval needed |
+| **Reddit (auto)** | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`, `REDDIT_PASSWORD` | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) | May not work for all accounts |
+| **Reddit (manual)** | None — just run a script | `node src/manualReddit.js` | Copy-paste ready posts |
+| **Twitter/X** | `TWITTER_API_KEY`, `TWITTER_API_SECRET`, `TWITTER_ACCESS_TOKEN`, `TWITTER_ACCESS_SECRET` | [developer.twitter.com](https://developer.twitter.com) | Requires `npm install twitter-api-v2` |
+
+---
+
+## Reddit Workaround
+
+If `reddit.com/prefs/apps` doesn't work for your account (common issue), use the manual poster:
+
+```bash
+node src/manualReddit.js
+```
+
+This generates copy-paste ready posts for r/DesiDeal, r/IndiaShopping, etc. Just copy the title and URL, go to the subreddit, click "Create Post" → "Link", and paste.
+
+For the best deal only:
+```bash
+node src/manualReddit.js --best
+```
 
 ---
 
@@ -92,13 +115,14 @@ src/
 ├── dealScraper.js            # Scrapes + resolves REAL product URLs
 ├── dealIntelligence.js       # Quality scoring & filtering
 ├── dealQualityScorer.js      # Conversion prediction scoring
-├── affiliateRouter.js        # Multi-network affiliate routing
+├── affiliateRouter.js        # Cuelinks + direct affiliate + UTM fallback
 ├── cuelinksAPI.js            # Cuelinks API integration
-├── distributionNetwork.js    # Reddit, Twitter, Discord, communities
+├── distributionNetwork.js    # Telegram communities, Discord, Reddit, Twitter
+├── manualReddit.js           # Copy-paste Reddit post generator
 ├── contentGenerator.js       # Platform-specific message formatting
 ├── broadcaster.js            # Sends to all channels
 ├── growthEngine.js           # Viral loops, milestones, bot commands
-├── redditPoster.js           # Reddit OAuth + submission
+├── redditPoster.js           # Reddit OAuth + submission (optional)
 ├── discordPoster.js          # Discord webhook embeds
 ├── dealSiteGenerator.js      # GitHub Pages SEO site
 ├── stockChecker.js           # Stock validation before posting
@@ -115,19 +139,19 @@ src/
 ## Zero-Cost Growth Strategy
 
 ### Week 1-2: Foundation
-1. Set up bot with your Telegram channel
-2. Post consistently (6x daily automatic)
+1. Set up bot with Telegram channel
+2. Bot auto-posts 6x daily
 3. Enable GitHub Pages for free SEO traffic
-4. Join 10+ Telegram deal groups, share 1-2 deals daily
+4. Add 3-5 manual deals to `data/deals.json` with real product URLs (guaranteed commissions)
 
 ### Week 3-4: Distribution
-5. Set up Reddit auto-posting (r/DesiDeal, r/IndiaShopping)
-6. Set up Discord webhooks in deal servers
-7. Install `twitter-api-v2` for Twitter posting
+5. Set up Discord webhooks in deal servers
+6. Run `node src/manualReddit.js` and post to r/DesiDeal daily
+7. Join 5-10 Telegram deal groups, share your best deal daily with channel link
 8. Share channel invite link on WhatsApp groups
 
 ### Month 2+: Scale
-9. As you hit 100+ members, apply for Amazon/Flipkart on Cuelinks
+9. Hit 100+ members, apply for Amazon/Flipkart on Cuelinks
 10. Cross-promote with other growing deal channels
 11. The bot auto-posts milestone celebrations (engagement boost)
 12. SEO site brings passive Google traffic
@@ -142,16 +166,30 @@ See `.env.example` for full list. Key ones:
 |----------|----------|-------------|
 | `TELEGRAM_BOT_TOKEN` | Yes | From @BotFather |
 | `TELEGRAM_CHAT_ID` | Yes | Your channel ID |
-| `CUELINKS_API_KEY` | No* | Cuelinks API key |
-| `EARNKARO_PUBLIC_TOKEN` | No* | EarnKaro public token |
-| `REDDIT_CLIENT_ID` | No | For Reddit posting |
-| `DISCORD_WEBHOOK_URL` | No | For Discord posting |
-| `TARGET_COMMUNITIES` | No | Telegram groups for cross-post |
+| `CUELINKS_API_KEY` | No* | Cuelinks API (instant approval stores) |
+| `AMAZON_ASSOCIATES_TAG` | No | Amazon Associates tag |
+| `FLIPKART_AFFILIATE_ID` | No | Flipkart affiliate ID |
+| `REDDIT_CLIENT_ID` | No | For automated Reddit posting (optional) |
+| `DISCORD_WEBHOOK_URL` | No | For Discord posting (optional) |
 | `MIN_DISCOUNT_PERCENT` | No | Min discount (default: 15) |
 | `MAX_DEALS_PER_RUN` | No | Max deals per run (default: 8) |
 | `CHECK_STOCK` | No | Validate stock before posting (default: true) |
 
-*At least one affiliate network recommended, but bot works with UTM fallback only.
+*Cuelinks recommended but bot works with direct affiliate or UTM fallback only.
+
+---
+
+## What Makes Money
+
+| Source | Setup | Commission |
+|--------|-------|-----------|
+| Cuelinks auto-approved | API key | Myntra, Nykaa, Ajio, etc. |
+| Amazon Associates | Associates tag | Amazon.in purchases |
+| Flipkart Affiliate | Affiliate ID | Flipkart purchases |
+| UTM fallback | None | Tracking only, no commission |
+
+**Realistic first-month earnings:** ₹500-2000 (Cuelinks auto-approved stores only)
+**After Amazon/Flipkart approval:** ₹2000-5000+ (scales with channel growth)
 
 ---
 

@@ -90,8 +90,8 @@ async function main(exitWhenDone = true) {
     if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
       logger.warn('TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — deals will be fetched but not broadcast');
     }
-    if (!process.env.CUELINKS_API_KEY && !process.env.EARNKARO_PUBLIC_TOKEN) {
-      logger.warn('No affiliate API keys set — using UTM tracking fallback only');
+    if (!process.env.CUELINKS_API_KEY) {
+      logger.warn('CUELINKS_API_KEY not set — affiliate links will use direct tracking params only');
     }
 
     const orchestrator = new DealBotOrchestrator();

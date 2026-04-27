@@ -1,47 +1,5 @@
 [
   {
-    "id": "manual-001",
-    "source": "myntra",
-    "title": "boAt Rockerz 450 Bluetooth On-Ear Headphones — 15hr Battery",
-    "originalPrice": 2990,
-    "discountedPrice": 999,
-    "discount": 67,
-    "rating": 4.2,
-    "reviews": 312000,
-    "trendScore": 9,
-    "productUrl": "https://www.myntra.com/headphones/boat/boat-rockerz-450-bluetooth-on-ear-headphone-with-upto-15-hours-playback-40mm-drivers-padded-ear-cushions-integrated-controls-and-mic-black/11395002/buy",
-    "imageUrl": null,
-    "description": "15hr battery, 40mm driver, padded cushions, integrated mic."
-  },
-  {
-    "id": "manual-002",
-    "source": "myntra",
-    "title": "boAt Airdopes 141 TWS Earbuds — 42hr Total Playback, IPX4",
-    "originalPrice": 2499,
-    "discountedPrice": 799,
-    "discount": 68,
-    "rating": 4.1,
-    "reviews": 195000,
-    "trendScore": 9,
-    "productUrl": "https://www.myntra.com/earphones/boat/boat-airdopes-141-tws-earbuds-with-42hr-total-playback-enviornment-noise-cancellation-and-ipx4-water-resistance-chalk-white/13315178/buy",
-    "imageUrl": null,
-    "description": "42hr total playback, IPX4 water resistant, fast charging."
-  },
-  {
-    "id": "manual-003",
-    "source": "myntra",
-    "title": "Noise ColorFit Pro 4 Smart Watch — SpO2, Heart Rate, 7-Day Battery",
-    "originalPrice": 4999,
-    "discountedPrice": 1499,
-    "discount": 70,
-    "rating": 4.0,
-    "reviews": 32000,
-    "trendScore": 8,
-    "productUrl": "https://www.myntra.com/smart-watches/noise/noise-colorfit-pro-4-alpha-bluetooth-calling-smart-watch/19340272/buy",
-    "imageUrl": null,
-    "description": "SpO2, HR, stress monitor, 7-day battery, 60+ sports modes."
-  },
-  {
     "id": "manual-005",
     "source": "nykaa",
     "title": "The Minimalist 10% Niacinamide + Zinc Serum 30ml",
@@ -53,7 +11,8 @@
     "trendScore": 9,
     "productUrl": "https://www.nykaa.com/the-minimalist-10-niacinamide-zinc-face-serum/p/2055060",
     "imageUrl": null,
-    "description": "Controls sebum, minimizes pores. Dermatologist tested."
+    "description": "Controls sebum, minimizes pores. Dermatologist tested.",
+    "stale": true
   },
   {
     "id": "manual-006",
@@ -67,7 +26,8 @@
     "trendScore": 8,
     "productUrl": "https://www.nykaa.com/mamaearth-vitamin-c-face-serum-for-skin-illumination-with-vitamin-c-and-turmeric/p/1060892",
     "imageUrl": null,
-    "description": "Vitamin C + Turmeric for skin illumination. Dermatologically tested."
+    "description": "Vitamin C + Turmeric for skin illumination. Dermatologically tested.",
+    "stale": true
   },
   {
     "id": "manual-007",
@@ -81,7 +41,8 @@
     "trendScore": 7,
     "productUrl": "https://www.nykaa.com/wow-apple-cider-vinegar-shampoo/p/432889",
     "imageUrl": null,
-    "description": "No sulphate, no paraben. Controls frizz and scalp buildup."
+    "description": "No sulphate, no paraben. Controls frizz and scalp buildup.",
+    "stale": true
   },
   {
     "id": "manual-009",
@@ -95,6 +56,7 @@
     "trendScore": 8,
     "productUrl": "https://www.healthkart.com/muscleblaze/muscleblaze-whey-active-protein-2-kg-chocolate-hazelnut/p/msku-7272",
     "imageUrl": null,
-    "description": "25g protein/serving, 5.5g BCAA."
+    "description": "25g protein/serving, 5.5g BCAA.",
+    "stale": true
   }
 ]

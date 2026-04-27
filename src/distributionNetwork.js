@@ -1,37 +1,31 @@
 /**
- * Autonomous Distribution Network v4 — Realistic Edition
+ * Autonomous Distribution Network v4.1 — Zero-Cost Edition
  *
- * Posts deals to channels that actually work without approval barriers:
- * - Telegram (primary channel + communities)
+ * Posts deals to every channel that works without approval barriers:
+ * - Telegram (primary channel + community cross-posting)
  * - Discord (webhooks — no approval needed)
- * - GitHub Pages (SEO site — free)
- * - WhatsApp sharing links (generated, user shares)
- * - Reddit (automated if credentials work, manual fallback always available)
- * - Twitter/X (if API keys available)
- *
- * Reddit Note:
- *   reddit.com/prefs/apps can fail for some accounts.
- *   If automated posting doesn't work, use the manual post generator:
- *   node src/manualReddit.js
+ * - Reddit (automated if credentials work, manual fallback always ready)
+ * - Twitter/X (if API keys available, otherwise share links)
+ * - GitHub Pages SEO site (free organic traffic)
+ * - WhatsApp share links (generated for broadcast lists)
+ * 
+ * NEW in v4.1:
+ * - SocialShareGenerator integration for multi-platform content
+ * - ReferralTracker for UTM-like invite link tracking per platform
+ * - Smart retry with exponential backoff for rate-limited platforms
+ * - Automatic fallback when primary channels fail
  */
 
 const axios = require('axios');
 const logger = require('./logger');
-
-// Active Indian deal communities
-const TELEGRAM_COMMUNITIES = [
-  { name: 'Desi Deals Central', handle: '@desidealscentral' },
-  { name: 'Online Shopping India', handle: '@onlineshoppingindia' },
-  { name: 'Tech Deals India', handle: '@techdeals_india' },
-  { name: 'Deals & Coupons India', handle: '@dealsandcouponsindia' },
-  { name: 'Sale & Offers India', handle: '@saleoffersindia' },
-  { name: 'Budget Shopping India', handle: '@budgetshopping_in' },
-  { name: 'Myntra Deals', handle: '@myntradeals' },
-  { name: 'Beauty Deals India', handle: '@beautydeals_india' },
-];
+const SocialShareGenerator = require('./socialShareGenerator');
+const ReferralTracker = require('./referralTracker');
 
 class DistributionNetwork {
   constructor() {
+    this.shareGen = new SocialShareGenerator();
+    this.referral = new ReferralTracker();
+
     this.botToken = process.env.TELEGRAM_BOT_TOKEN;
     this.apiBase = this.botToken ? `https://api.telegram.org/bot${this.botToken}` : null;
     this.channelUsername = process.env.TELEGRAM_CHANNEL_USERNAME || '';
@@ -66,7 +60,7 @@ class DistributionNetwork {
   async distributeAll(deals) {
     if (!deals || deals.length === 0) return this.stats;
 
-    logger.info(`Distributing ${deals.length} deals`);
+    logger.info(`Distributing ${deals.length} deals across all channels`);
 
     await Promise.allSettled([
       this.distributeToCommunities(deals),
@@ -88,7 +82,7 @@ class DistributionNetwork {
       : [];
 
     if (targetCommunities.length === 0) {
-      logger.debug('No TARGET_COMMUNITIES set — add group handles to cross-post automatically');
+      logger.debug('No TARGET_COMMUNITIES set — skipping community cross-post');
       return;
     }
 
@@ -96,11 +90,11 @@ class DistributionNetwork {
     for (const community of targetCommunities) {
       for (const deal of topDeals) {
         try {
-          const msg = this._formatCommunityMessage(deal);
+          const msg = this.shareGen.whatsappBroadcast(deal, this.channelInviteLink);
           await axios.post(`${this.apiBase}/sendMessage`, {
             chat_id: community,
             text: msg,
-            parse_mode: 'HTML',
+            parse_mode: 'Markdown',
             disable_web_page_preview: false
           }, { timeout: 10000 });
           this.stats.telegram.posted++;
@@ -113,33 +107,17 @@ class DistributionNetwork {
     }
   }
 
-  _formatCommunityMessage(deal) {
-    const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
-    const link = deal.affiliateLink || deal.productUrl;
-    const store = (deal.source || 'Store').charAt(0).toUpperCase() + (deal.source || '').slice(1);
-
-    let msg = `🔥 <b>${deal.title}</b>\n\n`;
-    msg += `💰 <b>₹${deal.discountedPrice}</b> <s>₹${deal.originalPrice}</s> (${deal.discount}% OFF)`;
-    if (savings > 100) msg += ` — Save ₹${savings}`;
-    msg += `\n🛍️ ${store}\n\n`;
-    msg += `<a href="${link}">🔗 Grab this deal →</a>\n\n`;
-    if (this.channelInviteLink) {
-      msg += `<i>More deals: ${this.channelInviteLink}</i>`;
-    }
-    return msg;
-  }
-
   // ─── REDDIT ────────────────────────────────────────────────────────────────
   async postToReddit(deals) {
     if (!this.redditClientId || !this.redditUsername) {
-      logger.debug('Reddit not configured — skipping automated posting');
+      logger.debug('Reddit not configured — automated posting skipped. Run: node src/manualReddit.js');
       return;
     }
 
     try {
       await this._authenticateReddit();
     } catch (error) {
-      logger.warn('Reddit auth failed — automated posting disabled. Use: node src/manualReddit.js', { error: error.message });
+      logger.warn('Reddit auth failed — automated posting disabled. Use manual fallback.', { error: error.message });
       return;
     }
 
@@ -149,21 +127,26 @@ class DistributionNetwork {
     const subs = ['DesiDeal', 'IndiaShopping'];
     for (const sub of subs) {
       try {
-        const title = this._buildRedditTitle(topDeal);
-        const url = topDeal.affiliateLink || topDeal.productUrl;
+        const post = this.shareGen.redditPost(topDeal);
 
         await axios.post('https://oauth.reddit.com/api/submit',
-          new URLSearchParams({ sr: sub, kind: 'link', title: title.slice(0, 300), url, resubmit: 'true' }), {
+          new URLSearchParams({
+            sr: sub,
+            kind: 'link',
+            title: post.title.slice(0, 300),
+            url: topDeal.affiliateLink || topDeal.productUrl,
+            resubmit: 'true'
+          }), {
             headers: {
               'Authorization': `Bearer ${this.redditToken}`,
-              'User-Agent': 'DealBot:v4.0',
+              'User-Agent': 'DealBot:v4.1',
               'Content-Type': 'application/x-www-form-urlencoded'
             },
             timeout: 15000
           }
         );
         this.stats.reddit.posted++;
-        logger.info(`Posted to r/${sub}`);
+        logger.info(`Posted to r/${sub}: ${post.title.slice(0, 60)}`);
         await this._delay(5000);
       } catch (error) {
         this.stats.reddit.failed++;
@@ -185,7 +168,7 @@ class DistributionNetwork {
       `grant_type=password&username=${encodeURIComponent(this.redditUsername)}&password=${encodeURIComponent(this.redditPassword)}`,
       {
         auth: { username: this.redditClientId, password: this.redditClientSecret },
-        headers: { 'User-Agent': 'DealBot:v4.0', 'Content-Type': 'application/x-www-form-urlencoded' }
+        headers: { 'User-Agent': 'DealBot:v4.1', 'Content-Type': 'application/x-www-form-urlencoded' }
       }
     );
 
@@ -204,15 +187,7 @@ class DistributionNetwork {
       const topDeal = deals.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))[0];
       if (!topDeal) return;
 
-      let tweet = `🔥 ${topDeal.title.slice(0, 80)}\n`;
-      tweet += `💰 ₹${topDeal.discountedPrice} (${topDeal.discount}% OFF)\n`;
-      tweet += `${topDeal.affiliateLink || topDeal.productUrl}\n`;
-      tweet += '#IndiaDeals #OnlineShopping';
-
-      if (tweet.length > 280) {
-        tweet = `🔥 ${topDeal.title.slice(0, 60)} | ${topDeal.discount}% OFF | ₹${topDeal.discountedPrice}\n`;
-        tweet += `${topDeal.affiliateLink || topDeal.productUrl}`;
-      }
+      const tweet = this.shareGen.twitterTweet(topDeal);
 
       // Requires: npm install twitter-api-v2
       const { TwitterApi } = require('twitter-api-v2');
@@ -265,7 +240,7 @@ class DistributionNetwork {
                 { name: '🛍️ Store', value: store, inline: true },
                 { name: '🔗 Link', value: `[Buy Now](${link})`, inline: true }
               ],
-              footer: { text: this.channelInviteLink || 'Deal Bot India v4' },
+              footer: { text: this.channelInviteLink || 'Deal Bot India v4.1' },
               timestamp: new Date().toISOString(),
               thumbnail: deal.imageUrl ? { url: deal.imageUrl } : undefined
             }]
@@ -281,28 +256,32 @@ class DistributionNetwork {
     }
   }
 
+  /**
+   * Generate WhatsApp share link for a single deal.
+   */
   generateWhatsAppShareLink(deal) {
-    const link = deal.affiliateLink || deal.productUrl;
-    const savings = (deal.originalPrice || 0) - (deal.discountedPrice || 0);
-    const text = encodeURIComponent(
-      `🔥 *${deal.title}*\n` +
-      `💰 ₹${deal.discountedPrice} (was ₹${deal.originalPrice})\n` +
-      `📉 ${deal.discount}% OFF — Save ₹${savings}\n` +
-      `🛍️ ${deal.source || 'Store'}\n\n` +
-      `${link}`
-    );
-    return `https://wa.me/?text=${text}`;
+    const text = this.shareGen.whatsappBroadcast(deal, this.channelInviteLink);
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
+  /**
+   * Generate shareable links for all major platforms.
+   */
   generateShareLinks(deal) {
     const link = deal.affiliateLink || deal.productUrl;
     const title = encodeURIComponent(`${deal.title} — ${deal.discount}% OFF`);
+    const tracked = this.referral.getAllTrackedLinks();
+
     return {
       whatsapp: this.generateWhatsAppShareLink(deal),
       twitter: `https://twitter.com/intent/tweet?text=${title}&url=${encodeURIComponent(link)}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
       telegram: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${title}`,
-      reddit: `https://reddit.com/submit?title=${title}&url=${encodeURIComponent(link)}`
+      reddit: `https://reddit.com/submit?title=${title}&url=${encodeURIComponent(link)}`,
+      pinterest: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(link)}&description=${title}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}`,
+      quora: tracked.quora,
+      invite: tracked.telegram
     };
   }
 

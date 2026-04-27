@@ -1,5 +1,5 @@
 /**
- * Deal Bot v4.0 - Main Orchestrator
+ * Deal Bot v4.1 - Main Orchestrator (FIXED)
  * 
  * Full pipeline: scrape → resolve real URLs → affiliate links → 
  * quality check → stock verify → content → broadcast everywhere
@@ -27,10 +27,10 @@ class DealBotOrchestrator {
 
   async run() {
     try {
-      logger.info('=== Deal Bot v4.0 Starting ===');
+      logger.info('=== Deal Bot v4.1 Starting ===');
 
-      // Step 1: Fetch deals from all sources
-      logger.info('Step 1: Fetching deals from all sources');
+      // Step 1: Fetch and process deals (scrape + quality + affiliate + stock + images)
+      logger.info('Step 1: Fetching and processing deals');
       const deals = await this.fetcher.fetchAllDeals();
 
       if (deals.length === 0) {
@@ -38,43 +38,33 @@ class DealBotOrchestrator {
         return { success: true, dealsProcessed: 0, message: 'No deals found' };
       }
 
-      logger.info(`Found ${deals.length} quality deals`);
+      logger.info(`Found ${deals.length} quality deals ready to broadcast`);
 
-      // Step 2: Attach affiliate links (with real URL resolution)
-      logger.info('Step 2: Processing affiliate links with real URL resolution');
-      const processedDeals = await this.fetcher.processDealsWithAffiliateLinks();
-
-      if (processedDeals.length === 0) {
-        logger.warn('No deals available after affiliate processing');
-        return { success: true, dealsProcessed: 0, message: 'No deals after processing' };
-      }
-
-      logger.info(`${processedDeals.length} deals ready to broadcast`);
-
-      // Step 3: Log deal summary
-      processedDeals.forEach(d => {
-        logger.debug(`Deal: ${d.title.slice(0, 60)} | ${d.source} | ${d.affiliateMethod || 'no-affiliate'} | URL source: ${d._urlSource || 'unknown'}`);
+      // Step 2: Log deal summary
+      deals.forEach(d => {
+        logger.debug(`Deal: ${d.title.slice(0, 60)} | ${d.source} | ${d.affiliateMethod || 'no-affiliate'} | URL source: ${d._urlSource || 'unknown'} | Score: ${d.qualityScore || 'n/a'}`);
       });
 
-      // Step 4: Set up bot commands
+      // Step 3: Set up bot commands
       await this.growthEngine.setupBotCommands();
 
-      // Step 5: Broadcast to all channels
-      logger.info('Step 3: Broadcasting deals everywhere');
-      const broadcastResults = await this.broadcaster.broadcastAll(processedDeals);
+      // Step 4: Broadcast to all channels
+      logger.info('Step 2: Broadcasting deals everywhere');
+      const broadcastResults = await this.broadcaster.broadcastAll(deals);
 
-      logger.info('=== Deal Bot v4.0 Pipeline Completed ===');
+      logger.info('=== Deal Bot v4.1 Pipeline Completed ===');
       return {
         success: true,
-        dealsProcessed: processedDeals.length,
+        dealsProcessed: deals.length,
         broadcast: broadcastResults,
-        deals: processedDeals.map(d => ({
+        deals: deals.map(d => ({
           id: d.id,
           title: d.title.slice(0, 60),
           source: d.source,
           discount: d.discount,
           affiliateMethod: d.affiliateMethod,
-          urlSource: d._urlSource || 'unknown'
+          urlSource: d._urlSource || 'unknown',
+          qualityScore: d.qualityScore
         }))
       };
     } catch (error) {

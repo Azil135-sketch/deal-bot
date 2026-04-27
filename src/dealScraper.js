@@ -128,21 +128,34 @@ async function resolveRealProductUrl(dealLink, storeHint) {
     // Some RSS feeds contain the actual product URL directly
     if (isDirectProductUrl(dealLink)) {
       logger.debug(`Direct product URL found: ${dealLink.slice(0, 60)}`);
-      return dealLink;
+      return cleanProductUrl(dealLink, storeHint);
     }
 
     // Follow redirects to find the real product URL
-    const resp = await axios.head(dealLink, {
+    const resp = await axios.get(dealLink, {
       timeout: URL_RESOLVE_TIMEOUT,
       maxRedirects: 10,
       headers: {
         'User-Agent': REDIRECT_FOLLOW_UA,
-        'Accept': 'text/html'
+        'Accept': 'text/html,application/xhtml+xml'
       },
+      responseType: 'stream',
       validateStatus: s => s < 500
     });
 
-    const finalUrl = resp.request?.res?.responseUrl || resp.config?.url || dealLink;
+    // Destroy stream immediately
+    resp.data.destroy();
+
+    // Extract final URL from multiple axios properties
+    let finalUrl =
+      resp.request?.res?.responseUrl ||
+      resp.request?.responseURL ||
+      resp.config?.url ||
+      dealLink;
+
+    if (finalUrl && !finalUrl.startsWith('http')) {
+      try { finalUrl = new URL(finalUrl, dealLink).href; } catch { finalUrl = dealLink; }
+    }
 
     if (isDirectProductUrl(finalUrl)) {
       logger.debug(`Resolved to product URL: ${finalUrl.slice(0, 60)}`);
@@ -153,31 +166,8 @@ async function resolveRealProductUrl(dealLink, storeHint) {
     return await extractProductFromPage(finalUrl, storeHint);
 
   } catch (error) {
-    // HEAD failed, try GET with early abort
-    try {
-      const resp = await axios.get(dealLink, {
-        timeout: URL_RESOLVE_TIMEOUT,
-        maxRedirects: 10,
-        headers: {
-          'User-Agent': REDIRECT_FOLLOW_UA,
-          'Accept': 'text/html'
-        },
-        responseType: 'stream',
-        validateStatus: s => s < 500
-      });
-
-      resp.data.destroy(); // We only need the URL
-      const finalUrl = resp.request?.res?.responseUrl || resp.config?.url || dealLink;
-
-      if (isDirectProductUrl(finalUrl)) {
-        return cleanProductUrl(finalUrl, storeHint);
-      }
-      return await extractProductFromPage(finalUrl, storeHint);
-
-    } catch (e2) {
-      logger.debug(`URL resolution failed for ${dealLink.slice(0, 60)}: ${e2.message}`);
-      return null;
-    }
+    // GET failed, try parsing the original URL page
+    return await extractProductFromPage(dealLink, storeHint);
   }
 }
 
@@ -187,6 +177,7 @@ function isDirectProductUrl(url) {
     const u = new URL(url);
     const host = u.hostname.toLowerCase();
     const path = u.pathname.toLowerCase();
+    const search = u.search.toLowerCase();
 
     // Must be a known commerce domain
     const commerceDomains = [
@@ -197,7 +188,8 @@ function isDirectProductUrl(url) {
       'firstcry.com', 'hopscotch.in', 'zivame.com',
       'healthkart.com', 'netmeds.com', 'pharmeasy.in', 'tata1mg.com', '1mg.com',
       'lenskart.com', 'fastrack.com', 'titan.co.in',
-      'pepperfry.com', 'hometown.in'
+      'pepperfry.com', 'hometown.in',
+      'amazon.in', 'flipkart.com' // included so they pass through as real URLs
     ];
 
     const isCommerce = commerceDomains.some(d => host.includes(d));
@@ -205,12 +197,21 @@ function isDirectProductUrl(url) {
 
     // Must look like a product URL (not search, not category)
     const isSearch = path.includes('/search') || path.includes('/s?') ||
-                     path.includes('/q=') || path.includes('/query=') ||
-                     path.includes('/catalogsearch/result');
+                     search.includes('q=') || search.includes('query=') ||
+                     path.includes('/catalogsearch/result') ||
+                     path.includes('/find/');
     if (isSearch) return false;
 
-    // Must have a product identifier in path
-    const hasProductId = /\/p\/|\/product\/|\/buy\/|\/dp\/|\/itm\/|\/item\/|\/[\w-]+\d{6,}|[?&]pid=/.test(path + u.search);
+    // Must have a product identifier in path or query
+    // Expanded patterns to catch more Indian e-commerce URL structures
+    const hasProductId =
+      /\/(?:p|product|buy|dp|itm|item|sku|pid|prod)\//.test(path) ||
+      /\/[\w-]+\d{5,}/.test(path) ||                    // slug ending in 5+ digits
+      /[?&](?:pid|productId|sku|id|spid|asin|item_id)=/.test(search) ||
+      /\/[bp]\d+/.test(path) ||                         // /b123, /p123 patterns
+      /\/[\w-]*\d{6,}[\w-]*$/.test(path) ||             // path contains 6+ digit number
+      (host.includes('myntra.com') && path.includes('/buy')); // Myntra buy pages
+
     if (!hasProductId) return false;
 
     return true;
@@ -221,6 +222,7 @@ function isDirectProductUrl(url) {
 
 /**
  * Extract product URL from a deal aggregator page by parsing the "Go to Store" link.
+ * Tries multiple strategies to find a real product URL.
  */
 async function extractProductFromPage(aggregatorUrl, storeHint) {
   try {
@@ -228,38 +230,90 @@ async function extractProductFromPage(aggregatorUrl, storeHint) {
       timeout: URL_RESOLVE_TIMEOUT,
       headers: {
         'User-Agent': USER_AGENT,
-        'Accept': 'text/html'
+        'Accept': 'text/html,application/xhtml+xml'
       },
-      maxContentLength: 200 * 1024,
+      maxContentLength: 250 * 1024,
       validateStatus: s => s < 500
     });
 
     const html = resp.data || '';
 
-    // Common patterns for "Go to Store" / affiliate links
-    const linkPatterns = [
-      // Desidime: data-href or href on buy button
-      /data-href=["'](https?:\/\/[^"']+)["']/i,
-      // Generic: "Go to Store" links
-      /href=["'](https?:\/\/[^"']+(?:myntra|ajio|nykaa|tatacliq|croma|meesho|snapdeal|bewakoof)[^"']*)["']/i,
-      // Rel="nofollow" affiliate links
-      /<a[^>]*rel=["'][^"]*nofollow[^"]*["'][^>]*href=["'](https?:\/\/[^"']+)["']/i,
-      // onclick tracking links
-      /onclick=["'][^"]*(?:window\.location\.href|open)\s*=\s*["'](https?:\/\/[^"']+)["']/i,
+    // Strategy 1: Look for data-href or data-url on "Go to Store" / "Buy Now" buttons
+    const dataPatterns = [
+      /data-href=["'](https?:\/\/[^"']+)["']/gi,
+      /data-url=["'](https?:\/\/[^"']+)["']/gi,
+      /data-link=["'](https?:\/\/[^"']+)["']/gi,
     ];
 
-    for (const pattern of linkPatterns) {
-      const match = html.match(pattern);
-      if (match) {
+    for (const pattern of dataPatterns) {
+      const matches = [...html.matchAll(pattern)];
+      for (const match of matches) {
         const foundUrl = match[1];
         if (isDirectProductUrl(foundUrl)) {
           return cleanProductUrl(foundUrl, storeHint);
         }
-        // If it looks like a redirect URL, follow it
-        if (foundUrl.includes('track.') || foundUrl.includes('/go/') || foundUrl.includes('/out/')) {
-          return await resolveRealProductUrl(foundUrl, storeHint);
+        if (foundUrl.includes('track.') || foundUrl.includes('/go/') || foundUrl.includes('/out/') || foundUrl.includes('/redirect')) {
+          const resolved = await resolveRealProductUrl(foundUrl, storeHint);
+          if (resolved) return resolved;
         }
       }
+    }
+
+    // Strategy 2: Look for "Go to Store", "Buy Now", "Shop Now" links
+    const ctaPatterns = [
+      // Desidime / GrabOn CTA buttons
+      /<a[^>]*(?:href|data-href)=["'](https?:\/\/[^"']+)["'][^>]*>(?:go to store|buy now|shop now|get deal|grab deal|view deal)/gi,
+      /<a[^>]*>(?:go to store|buy now|shop now|get deal|grab deal|view deal)[^<]*<\/a>[^<]*<[^>]*(?:href|data-href)=["'](https?:\/\/[^"']+)["']/gi,
+    ];
+
+    for (const pattern of ctaPatterns) {
+      const matches = [...html.matchAll(pattern)];
+      for (const match of matches) {
+        const foundUrl = match[1] || match[2];
+        if (!foundUrl) continue;
+        if (isDirectProductUrl(foundUrl)) {
+          return cleanProductUrl(foundUrl, storeHint);
+        }
+        const resolved = await resolveRealProductUrl(foundUrl, storeHint);
+        if (resolved) return resolved;
+      }
+    }
+
+    // Strategy 3: Generic nofollow / outbound links to known stores
+    const storeDomains = ['myntra.com', 'ajio.com', 'nykaa.com', 'tatacliq.com', 'croma.com',
+                          'meesho.com', 'snapdeal.com', 'bewakoof.com', 'healthkart.com',
+                          'netmeds.com', 'pharmeasy.in', 'tata1mg.com', '1mg.com', 'lenskart.com',
+                          'pepperfry.com', 'amazon.in', 'flipkart.com'];
+
+    const hrefPattern = /href=["'](https?:\/\/[^"']+)["']/gi;
+    const hrefMatches = [...html.matchAll(hrefPattern)];
+    for (const match of hrefMatches) {
+      const foundUrl = match[1];
+      const isStoreLink = storeDomains.some(d => foundUrl.includes(d));
+      if (isStoreLink && isDirectProductUrl(foundUrl)) {
+        return cleanProductUrl(foundUrl, storeHint);
+      }
+    }
+
+    // Strategy 4: Rel="nofollow" affiliate links
+    const nofollowPattern = /<a[^>]*rel=["'][^"]*nofollow[^"]*["'][^>]*href=["'](https?:\/\/[^"']+)["']/gi;
+    const nofollowMatches = [...html.matchAll(nofollowPattern)];
+    for (const match of nofollowMatches) {
+      const foundUrl = match[1];
+      if (isDirectProductUrl(foundUrl)) {
+        return cleanProductUrl(foundUrl, storeHint);
+      }
+      const resolved = await resolveRealProductUrl(foundUrl, storeHint);
+      if (resolved) return resolved;
+    }
+
+    // Strategy 5: onclick tracking links
+    const onclickPattern = /onclick=["'][^"']*(?:window\.location\.href|open\()?\s*["']?(https?:\/\/[^"']+)["']/gi;
+    const onclickMatches = [...html.matchAll(onclickPattern)];
+    for (const match of onclickMatches) {
+      const foundUrl = match[1];
+      const resolved = await resolveRealProductUrl(foundUrl, storeHint);
+      if (resolved) return resolved;
     }
 
     return null;
@@ -395,16 +449,21 @@ class DealScraper {
             }
           }
 
-          // Fallback: build search URL only if we couldn't resolve
+          // FALLBACK: Only build search URL if resolution completely failed.
+          // We LOG and SKIP search URLs — they don't convert and annoy users.
           if (!productUrl) {
-            const keywords = extractSearchKeywords(title);
-            if (SEARCH_URL_MAP[storeName]) {
-              productUrl = SEARCH_URL_MAP[storeName](keywords);
-              urlSource = 'search_fallback';
-            } else {
-              continue; // Skip if we can't get any URL
-            }
+            logger.warn(`Could not resolve real product URL for "${title.slice(0, 60)}" — SKIPPING (no search fallback)`);
+            continue;
           }
+
+          // Double-check we didn't end up with a search page
+          try {
+            const u = new URL(productUrl);
+            if (u.pathname.includes('/search') || u.search.includes('q=') || u.search.includes('query=')) {
+              logger.warn(`Resolved URL is a search page — SKIPPING: ${productUrl.slice(0, 80)}`);
+              continue;
+            }
+          } catch {}
 
           // Extract image from RSS
           const imageMatch = desc.match(/https?:\/\/[^"'\s<>]*(?:dealsmagnet|cdn)[^"'\s<>]*\.(?:jpg|jpeg|png|webp)/i);
@@ -428,7 +487,7 @@ class DealScraper {
             timestamp: new Date().toISOString(),
             _scraperSource: 'dealsmagnet_rss',
             _storeRaw: storeName,
-            _isSearchUrl: urlSource === 'search_fallback',
+            _isSearchUrl: false,
             _urlSource: urlSource,
             _needsUrlResolution: false
           });
@@ -499,18 +558,20 @@ class DealScraper {
           // Resolve real URL from the deal page
           const dealPageUrl = href.startsWith('http') ? href : `https://www.desidime.com${href}`;
           let productUrl = await resolveRealProductUrl(dealPageUrl, storeName);
-          let isSearchUrl = false;
 
           if (!productUrl) {
-            // Fallback to search URL
-            const keywords = extractSearchKeywords(title);
-            if (SEARCH_URL_MAP[storeName]) {
-              productUrl = SEARCH_URL_MAP[storeName](keywords);
-              isSearchUrl = true;
-            } else {
+            logger.warn(`Desidime: Could not resolve real URL for "${title.slice(0, 60)}" — SKIPPING`);
+            continue;
+          }
+
+          // Reject search-page URLs
+          try {
+            const u = new URL(productUrl);
+            if (u.pathname.includes('/search') || u.search.includes('q=') || u.search.includes('query=')) {
+              logger.warn(`Desidime: Resolved to search page — SKIPPING: ${productUrl.slice(0, 80)}`);
               continue;
             }
-          }
+          } catch {}
 
           const imgEl = $el.closest('div, article, li').find('img').first();
           const imageUrl = imgEl.attr('data-src') || imgEl.attr('src') || null;
@@ -531,8 +592,8 @@ class DealScraper {
             timestamp: new Date().toISOString(),
             _scraperSource: 'desidime_html',
             _storeRaw: storeName,
-            _isSearchUrl: isSearchUrl,
-            _urlSource: isSearchUrl ? 'search_fallback' : 'resolved',
+            _isSearchUrl: false,
+            _urlSource: 'resolved',
             _needsUrlResolution: false
           });
         } catch (e) {}

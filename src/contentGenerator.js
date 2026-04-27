@@ -103,6 +103,11 @@ class ContentGenerator {
       msg += `${e(note)}\n\n`;
     }
 
+    // Price drop indicator (from priceTracker)
+    if (deal._priceDrop) {
+      msg += `📉 <b>Price Drop Alert</b>: ${deal._priceDropPct}% below its 7-day average.\n\n`;
+    }
+
     // CTA — direct and clear
     if (isSearchLink) {
       msg += `<a href="${link}">Find it on ${e(store)} →</a>`;

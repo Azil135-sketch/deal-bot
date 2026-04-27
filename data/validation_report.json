@@ -1,0 +1,84 @@
+[
+  {
+    "runAt": "2026-04-27T16:10:34.901Z",
+    "mode": "auto-remove",
+    "summary": {
+      "ok": 0,
+      "flagged": 0,
+      "removed": 3,
+      "unreachable": 4
+    },
+    "results": [
+      {
+        "id": "manual-001",
+        "storedTitle": "boAt Rockerz 450 Bluetooth On-Ear Headphones — 15hr Battery",
+        "liveTitle": "Oops! Something went wrong",
+        "url": "https://www.myntra.com/headphones/boat/boat-rockerz-450-bluetooth-on-ear-headphone-with-upto-15-hours-playback-40mm-drivers-padded-ear-cushions-integrated-controls-and-mic-black/11395002/buy",
+        "status": 200,
+        "overlap": 0,
+        "outcome": "stale",
+        "action": "remove"
+      },
+      {
+        "id": "manual-002",
+        "storedTitle": "boAt Airdopes 141 TWS Earbuds — 42hr Total Playback, IPX4",
+        "liveTitle": "Oops! Something went wrong",
+        "url": "https://www.myntra.com/earphones/boat/boat-airdopes-141-tws-earbuds-with-42hr-total-playback-enviornment-noise-cancellation-and-ipx4-water-resistance-chalk-white/13315178/buy",
+        "status": 200,
+        "overlap": 0,
+        "outcome": "stale",
+        "action": "remove"
+      },
+      {
+        "id": "manual-003",
+        "storedTitle": "Noise ColorFit Pro 4 Smart Watch — SpO2, Heart Rate, 7-Day Battery",
+        "liveTitle": "Oops! Something went wrong",
+        "url": "https://www.myntra.com/smart-watches/noise/noise-colorfit-pro-4-alpha-bluetooth-calling-smart-watch/19340272/buy",
+        "status": 200,
+        "overlap": 0,
+        "outcome": "stale",
+        "action": "remove"
+      },
+      {
+        "id": "manual-005",
+        "storedTitle": "The Minimalist 10% Niacinamide + Zinc Serum 30ml",
+        "liveTitle": null,
+        "url": "https://www.nykaa.com/the-minimalist-10-niacinamide-zinc-face-serum/p/2055060",
+        "status": 403,
+        "overlap": null,
+        "outcome": "unreachable",
+        "action": "flag"
+      },
+      {
+        "id": "manual-006",
+        "storedTitle": "Mamaearth Vitamin C Face Serum 30ml with Turmeric",
+        "liveTitle": null,
+        "url": "https://www.nykaa.com/mamaearth-vitamin-c-face-serum-for-skin-illumination-with-vitamin-c-and-turmeric/p/1060892",
+        "status": 403,
+        "overlap": null,
+        "outcome": "unreachable",
+        "action": "flag"
+      },
+      {
+        "id": "manual-007",
+        "storedTitle": "WOW Apple Cider Vinegar Shampoo 300ml — No Sulphate, No Paraben",
+        "liveTitle": null,
+        "url": "https://www.nykaa.com/wow-apple-cider-vinegar-shampoo/p/432889",
+        "status": 403,
+        "overlap": null,
+        "outcome": "unreachable",
+        "action": "flag"
+      },
+      {
+        "id": "manual-009",
+        "storedTitle": "MuscleBlaze Whey Active Protein 2kg — Chocolate Hazelnut",
+        "liveTitle": null,
+        "url": "https://www.healthkart.com/muscleblaze/muscleblaze-whey-active-protein-2-kg-chocolate-hazelnut/p/msku-7272",
+        "status": 403,
+        "overlap": null,
+        "outcome": "unreachable",
+        "action": "flag"
+      }
+    ]
+  }
+]

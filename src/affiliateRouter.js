@@ -175,32 +175,64 @@ class AffiliateRouter {
 
   /**
    * Follow HTTP redirects to get the final product URL.
+   * Uses GET-with-stream to capture final URL, then destroys stream.
+   * Handles axios v1.x redirect quirks across Node versions.
    */
   async _resolveRedirectUrl(url) {
     if (this._resolvedUrlCache.has(url)) return this._resolvedUrlCache.get(url);
 
     try {
-      const resp = await axios.head(url, {
+      const resp = await axios.get(url, {
         timeout: URL_RESOLVE_TIMEOUT,
         maxRedirects: 10,
-        headers: { 'User-Agent': USER_AGENT, 'Accept': 'text/html' },
+        headers: {
+          'User-Agent': REDIRECT_FOLLOW_UA,
+          'Accept': 'text/html,application/xhtml+xml'
+        },
+        responseType: 'stream',
         validateStatus: s => s < 500
       });
 
-      const finalUrl = resp.request?.res?.responseUrl || resp.config?.url || url;
+      // Destroy stream immediately — we only care about the final URL
+      resp.data.destroy();
+
+      // Extract final URL: check multiple axios properties for compatibility
+      let finalUrl =
+        resp.request?.res?.responseUrl ||
+        resp.request?.responseURL ||
+        resp.config?.url ||
+        url;
+
+      // If we got a relative URL, resolve it against original
+      if (finalUrl && !finalUrl.startsWith('http')) {
+        try { finalUrl = new URL(finalUrl, url).href; } catch { finalUrl = url; }
+      }
+
       this._resolvedUrlCache.set(url, finalUrl);
       return finalUrl;
     } catch {
+      // Fallback: try HEAD request
       try {
-        const resp = await axios.get(url, {
+        const resp = await axios.head(url, {
           timeout: URL_RESOLVE_TIMEOUT,
           maxRedirects: 10,
-          headers: { 'User-Agent': USER_AGENT, 'Accept': 'text/html' },
-          responseType: 'stream',
+          headers: {
+            'User-Agent': REDIRECT_FOLLOW_UA,
+            'Accept': 'text/html'
+          },
           validateStatus: s => s < 500
         });
-        resp.data.destroy();
-        const finalUrl = resp.request?.res?.responseUrl || resp.config?.url || url;
+
+        let finalUrl =
+          resp.request?.res?.responseUrl ||
+          resp.request?.responseURL ||
+          resp.config?.url ||
+          url;
+
+        if (finalUrl && !finalUrl.startsWith('http')) {
+          try { finalUrl = new URL(finalUrl, url).href; } catch { finalUrl = url; }
+        }
+
         this._resolvedUrlCache.set(url, finalUrl);
         return finalUrl;
       } catch {

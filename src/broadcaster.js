@@ -92,7 +92,7 @@ class Broadcaster {
           if (!content) continue;
 
           const fullContent = content + this.growthEngine.buildViralFooter();
-          await this._sendTelegramMessage(botToken, chatId, fullContent, deal.localImage);
+          await this._sendTelegramMessage(botToken, chatId, fullContent, deal);
           broadcastCount++;
           await this._delay(TELEGRAM_RATE_LIMIT_MS);
         } catch (error) {
@@ -106,23 +106,19 @@ class Broadcaster {
     return { success: broadcastCount > 0, count: broadcastCount, failed: failCount };
   }
 
-  async _sendTelegramMessage(botToken, chatId, content, localImage) {
+  async _sendTelegramMessage(botToken, chatId, content, deal) {
     const baseUrl = `https://api.telegram.org/bot${botToken}`;
 
-    // Try photo message first if we have an image
-    if (localImage?.path) {
+    // Try photo message if we have an image URL
+    if (deal.imageUrl) {
       try {
-        const FormData = require('form-data');
-        const fs = require('fs');
-        const form = new FormData();
-        form.append('chat_id', String(chatId));
-        form.append('caption', content);
-        form.append('parse_mode', 'HTML');
-        form.append('photo', fs.createReadStream(localImage.path));
-        await axios.post(`${baseUrl}/sendPhoto`, form, {
-          headers: form.getHeaders(),
-          timeout: 15000
-        });
+        await axios.post(`${baseUrl}/sendPhoto`, {
+          chat_id: String(chatId),
+          caption: content,
+          parse_mode: 'HTML',
+          photo: deal.imageUrl,
+          disable_notification: false
+        }, { timeout: 15000 });
         return;
       } catch {
         // Fall through to text message

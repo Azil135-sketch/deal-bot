@@ -1,17 +1,17 @@
 /**
- * Viral Growth Engine v4
+ * Viral Growth Engine v4.1
  * 
  * Autonomous channel growth through:
- * - Referral tracking and rewards
- * - Cross-promotion network
- * - SEO content generation
- * - Viral loop mechanics
- * - Community engagement automation
- * - Analytics and optimization
+ * - Referral tracking and rewards via ReferralTracker
+ * - Smart milestone posts with engagement hooks
+ * - Bot commands that drive shares
+ * - Price drop alerts as re-engagement tool
+ * - Cross-platform invite link generation with tracking
  */
 
 const axios = require('axios');
 const logger = require('./logger');
+const ReferralTracker = require('./referralTracker');
 
 class GrowthEngine {
   constructor() {
@@ -21,10 +21,8 @@ class GrowthEngine {
     this.channelInviteLink = process.env.TELEGRAM_CHANNEL_INVITE_LINK || '';
     this.apiBase = this.botToken ? `https://api.telegram.org/bot${this.botToken}` : null;
 
-    // Growth tracking
-    this.referralCode = process.env.REFERRAL_CODE || 'DEALBOT';
+    this.referral = new ReferralTracker();
     this.subscribers = 0;
-    this.lastMilestone = 0;
     this.milestones = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
   }
 
@@ -36,11 +34,14 @@ class GrowthEngine {
       ? `@${this.channelUsername.replace('@', '')}`
       : (this.channelInviteLink || 'our channel');
 
+    const tracked = this.referral.getAllTrackedLinks();
+    const invite = tracked.telegram || this.channelInviteLink || channelRef;
+
     const lines = [
       '',
       '━━━━━━━━━━━━━━━━━━━━━',
       `💡 <b>Know someone who loves deals?</b>`,
-      `👉 Forward this deal or share ${channelRef}`,
+      `👉 Forward this or share: ${invite}`,
       `🔔 Turn on notifications — never miss a deal`,
       '━━━━━━━━━━━━━━━━━━━━━'
     ];
@@ -59,7 +60,7 @@ class GrowthEngine {
         commands: [
           { command: 'start', description: 'Welcome + invite link' },
           { command: 'deals', description: 'Latest hot deals' },
-          { command: 'invite', description: 'Invite friends - get rewards' },
+          { command: 'invite', description: 'Invite friends — get rewards' },
           { command: 'share', description: 'Share deals on WhatsApp' },
           { command: 'about', description: 'About this bot' },
           { command: 'top', description: 'Top deals today' }
@@ -72,7 +73,7 @@ class GrowthEngine {
   }
 
   /**
-   * Handle incoming Telegram updates.
+   * Handle incoming Telegram updates (commands).
    */
   async handleUpdate(update) {
     if (!this.apiBase) return;
@@ -108,13 +109,17 @@ class GrowthEngine {
   }
 
   _getInviteMessage() {
-    const link = this.channelInviteLink || (this.channelUsername ? `https://t.me/${this.channelUsername.replace('@', '')}` : '');
-    const referralLink = link ? `${link}?start=${this.referralCode}` : link;
+    const tracked = this.referral.getAllTrackedLinks();
+    const link = tracked.telegram || this.channelInviteLink || '';
+    const whatsappLink = tracked.whatsapp || link;
+    const redditLink = tracked.reddit || link;
 
     return `📣 *Share the Deals!*\n\n` +
       `Know someone who loves saving money?\n` +
-      `Send them this link:\n\n` +
-      `${referralLink}\n\n` +
+      `Here are your tracked invite links:\n\n` +
+      `*Telegram:* ${link}\n` +
+      `*WhatsApp:* ${whatsappLink}\n` +
+      `*Reddit:* ${redditLink}\n\n` +
       `*Why share?*\n` +
       `• More members = better deals\n` +
       `• Unlock exclusive deals at milestones\n` +
@@ -124,12 +129,13 @@ class GrowthEngine {
 
   _getAboutMessage() {
     return `*About Deal Bot India* 🤖\n\n` +
-      `I'm an automated deal aggregator for India. I scan the web daily for genuine discounts (20%+ off, min ₹200 savings) from Myntra, Nykaa, Ajio, TataCliq, Mamaearth, Minimalist & more.\n\n` +
+      `I'm an automated deal aggregator for India. I scan the web daily for genuine discounts (20%+ off, min ₹200 savings) from Myntra, Nykaa, Ajio, TataCliq, Healthkart & more.\n\n` +
       `*Features:*\n` +
       `✅ Real product links (not search pages)\n` +
       `✅ Stock checked before posting\n` +
+      `✅ Price history tracking (spot fake discounts)\n` +
       `✅ Only high-quality, vetted deals\n` +
-      `✅ 4x daily updates\n\n` +
+      `✅ 4-6x daily updates\n\n` +
       `_No spam. No fake deals. Just real savings._`;
   }
 
@@ -159,38 +165,39 @@ class GrowthEngine {
 
   /**
    * Check subscriber count and post milestone messages.
+   * Records subscriber history for velocity tracking.
    */
   async checkAndPostMilestone() {
     if (!this.apiBase || !this.channelId) return;
 
     try {
-      const resp = await axios.post(`${this.apiBase}/getChatMemberCount`, {
-        chat_id: this.channelId
-      });
-      const count = resp.data?.result || 0;
+      const { count, growthVelocity, isNewMilestone } = await this.referral.recordSubscriberCount();
       this.subscribers = count;
 
-      const nextMilestone = this.milestones.find(m => m > this.lastMilestone && count >= m);
-      if (nextMilestone) {
-        await this._postMilestoneMessage(nextMilestone);
-        this.lastMilestone = nextMilestone;
+      if (isNewMilestone) {
+        const nextMilestone = this.milestones.find(m => m > this.subscribers * 0.5 && count >= m);
+        if (nextMilestone) {
+          await this._postMilestoneMessage(nextMilestone, growthVelocity);
+        }
       }
     } catch (error) {
-      logger.debug('Failed to get subscriber count', { error: error.message });
+      logger.debug('Milestone check error', { error: error.message });
     }
   }
 
-  async _postMilestoneMessage(count) {
+  async _postMilestoneMessage(count, velocity = 0) {
     const link = this.channelInviteLink || '';
+    const velocityText = velocity > 0 ? `We're growing at ~${velocity} members/day.` : '';
+
     const messages = {
       10: `🎉 *We just hit 10 members!*\n\nEvery journey starts small. Thank you for being here from the beginning.\n\n👉 Share with friends: ${link}`,
-      50: `🎉 *50 members strong!* 💪\n\nWe're growing! Help us reach 100:\n👉 ${link}\n\n_Better deals coming as we grow_`,
+      50: `🎉 *50 members strong!* 💪\n\n${velocityText}\nHelp us reach 100:\n👉 ${link}\n\n_Better deals coming as we grow_`,
       100: `🎉 *100 members!* 🎊\n\nThis is a real milestone. From 0 to 100 — thank you!\n\n🔓 *Unlocked:* Daily deal summaries\n👉 Share to unlock more: ${link}`,
-      500: `🎉 *500 members!* 🚀\n\nHalfway to 1000! We're becoming a real community.\n\n🔓 *Unlocked:* Priority deal alerts\n👉 ${link}`,
+      500: `🎉 *500 members!* 🚀\n\n${velocityText}\nHalfway to 1000! We're becoming a real community.\n\n🔓 *Unlocked:* Priority deal alerts\n👉 ${link}`,
       1000: `🎉 *1000 MEMBERS!* 🔥\n\nWe made it! 1000 deal hunters strong.\n\n🔓 *Unlocked:* Exclusive brand partnerships\n🔓 *Unlocked:* Weekly deal roundups\n\nThank you for trusting us! 💜`
     };
 
-    const text = messages[count] || `🎉 *We just hit ${count} members!*\n\nThank you for being part of our community!\n\nHelp us grow:\n👉 ${link}`;
+    const text = messages[count] || `🎉 *We just hit ${count} members!*\n\n${velocityText}\nThank you for being part of our community!\n\nHelp us grow:\n👉 ${link}`;
 
     try {
       const resp = await axios.post(`${this.apiBase}/sendMessage`, {
@@ -213,7 +220,8 @@ class GrowthEngine {
    * Build shareable text for any platform.
    */
   buildShareableText(deal) {
-    const link = this.channelInviteLink || (this.channelUsername ? `https://t.me/${this.channelUsername.replace('@', '')}` : '');
+    const tracked = this.referral.getAllTrackedLinks();
+    const link = tracked.telegram || this.channelInviteLink || '';
     return `🔥 ${deal.title}\n` +
       `💰 ₹${deal.discountedPrice} (${deal.discount}% OFF)\n` +
       `🛍️ ${deal.affiliateLink || deal.productUrl}\n\n` +
